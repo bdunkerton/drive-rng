@@ -6,7 +6,9 @@ Plain JavaScript in the browser. No build step and no dependencies.
 
 ## Play it
 
-You need [Node.js](https://nodejs.org) 18 or newer.
+**Online:** https://bdunkerton.github.io/drive-rng/ (GitHub Pages, served straight from `main`; a push shows up there within a few minutes). The URL options below work there too, e.g. `https://bdunkerton.github.io/drive-rng/?quick=1&laps=1`.
+
+**Locally:** you need [Node.js](https://nodejs.org) 18 or newer.
 
 ```
 npm start
