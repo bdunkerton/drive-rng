@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Kartwheel: start game server",
+      "type": "shell",
+      "command": "npm start",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "kartwheel",
+        "pattern": {
+          "regexp": "^__never__$"
+        },
+        "background": {
+          "beginsPattern": "Kartwheel",
+          "endsPattern": "running at",
+          "activeBegins": true
+        }
+      },
+      "group": "build"
+    },
+    {
+      "label": "Kartwheel: run tests",
+      "type": "shell",
+      "command": "npm test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Kartwheel: simulate an AI race",
+      "type": "shell",
+      "command": "npm run sim",
+      "problemMatcher": []
+    }
+  ]
+}

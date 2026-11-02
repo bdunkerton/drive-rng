@@ -1,0 +1,16 @@
+{
+  "name": "kartwheel",
+  "version": "0.1.0",
+  "description": "A top-down pixel kart racer. One track, one item, three rivals, and a lot of room for chaos.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test",
+    "sim": "node scripts/sim.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED"
+}
