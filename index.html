@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Kartwheel</title>
+    <title>Drive RNG</title>
     <link rel="icon" href="data:," />
     <style>
       html, body {
@@ -31,13 +31,13 @@
   </head>
   <body>
     <canvas id="game" tabindex="0"></canvas>
-    <noscript>Kartwheel needs JavaScript.</noscript>
+    <noscript>Drive RNG needs JavaScript.</noscript>
     <script type="module">
       // Opening index.html straight from disk can't load modules; say so instead of a black screen.
       if (location.protocol === 'file:') {
         document.body.innerHTML =
           '<p style="color:#eee;font-family:sans-serif;max-width:32em;line-height:1.5">' +
-          'Kartwheel has to be served, not opened as a file. In a terminal in this folder run ' +
+          'Drive RNG has to be served, not opened as a file. In a terminal in this folder run ' +
           '<code>npm start</code> (or <code>python -m http.server 8080</code>) and open ' +
           '<code>http://localhost:8080</code>.</p>';
       } else {

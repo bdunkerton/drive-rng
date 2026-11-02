@@ -39,7 +39,7 @@ function runOne(seed) {
 if (runs === 1) {
   const seed = /^\d+$/.test(seedArg) ? Number(seedArg) : seedArg;
   const { race, results, timedOut, stats } = runOne(seed);
-  console.log(`\nKartwheel sim  ·  ${race.track.name}  ·  seed ${seed}  ·  ${laps} laps  ·  ${karts} karts\n`);
+  console.log(`\nDrive RNG sim  ·  ${race.track.name}  ·  seed ${seed}  ·  ${laps} laps  ·  ${karts} karts\n`);
   console.log('  POS  RACER    TIME       BEST LAP   LAPS');
   for (const r of results) {
     const time = r.finished ? formatTime(r.time) : 'DNF      ';
@@ -63,7 +63,7 @@ if (runs === 1) {
     for (const r of results) if (r.finished) (totals[r.name] ??= []).push(r.time);
     for (const [k, v] of Object.entries(stats.uses)) uses[k] = (uses[k] ?? 0) + v;
   }
-  console.log(`\nKartwheel sim  ·  ${runs} races  ·  ${laps} laps  ·  ${karts} karts\n`);
+  console.log(`\nDrive RNG sim  ·  ${runs} races  ·  ${laps} laps  ·  ${karts} karts\n`);
   console.log('  RACER    WINS   AVG TIME');
   for (const name of Object.keys(totals).sort()) {
     const t = totals[name];

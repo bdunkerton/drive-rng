@@ -1,5 +1,5 @@
 {
-  "name": "kartwheel",
+  "name": "drive-rng",
   "version": "0.1.0",
   "description": "A top-down pixel kart racer. One track, one item, three rivals, and a lot of room for chaos.",
   "private": true,

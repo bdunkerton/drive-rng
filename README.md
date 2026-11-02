@@ -1,4 +1,4 @@
-# Kartwheel
+# Drive RNG
 
 A top-down pixel kart racer. One track, three AI rivals, item boxes and a single item (a speed boost) — built so that the items can grow into a big pile of random, chaotic powerups.
 
@@ -14,7 +14,7 @@ npm start
 
 Then open the address it prints (normally `http://localhost:8080`).
 
-**In VS Code:** run `npm start` in the integrated terminal (or *Terminal → Run Task → Kartwheel: start game server*), then press `Ctrl+Shift+P`, choose **Simple Browser: Show**, and paste the address. Click inside the game once so it gets the keyboard.
+**In VS Code:** run `npm start` in the integrated terminal (or *Terminal → Run Task → Drive RNG: start game server*), then press `Ctrl+Shift+P`, choose **Simple Browser: Show**, and paste the address. Click inside the game once so it gets the keyboard.
 
 No Node? `python -m http.server 8080` in this folder works too (tests and the simulator need Node). Opening `index.html` straight from disk won't work, because browsers block modules on `file://`.
 

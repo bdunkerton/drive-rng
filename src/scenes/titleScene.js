@@ -56,7 +56,7 @@ export class TitleScene {
     g.fillRect(0, 0, VIEW.width, VIEW.height);
 
     const bob = Math.round(Math.sin(this.clock * 2) * 2);
-    drawOutlinedText(g, 'KARTWHEEL', VIEW.width / 2, 24 + bob, { color: PAL.gold, scale: 4, align: 'center' });
+    drawOutlinedText(g, 'DRIVE RNG', VIEW.width / 2, 24 + bob, { color: PAL.gold, scale: 4, align: 'center' });
     drawText(g, 'PIXEL RACING CHAOS', VIEW.width / 2, 50, { color: PAL.white, align: 'center' });
 
     drawPanel(g, VIEW.width / 2 - 70, 66, 140, 42);

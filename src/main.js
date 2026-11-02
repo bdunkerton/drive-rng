@@ -107,5 +107,5 @@ export class Game {
 const canvas = document.getElementById('game');
 const game = new Game(canvas);
 game.run();
-// Handy in the browser console: window.kartwheel.scene.race
-window.kartwheel = game;
+// Handy in the browser console: window.driveRng.scene.race
+window.driveRng = game;
