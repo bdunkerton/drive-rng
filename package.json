@@ -1,7 +1,7 @@
 {
   "name": "drive-rng",
   "version": "0.1.0",
-  "description": "A top-down pixel kart racer. One track, one item, three rivals, and a lot of room for chaos.",
+  "description": "A top-down pixel kart racer: ten powerups you can fuse, copy, double and steal.",
   "private": true,
   "type": "module",
   "scripts": {

@@ -25,7 +25,7 @@ export class RaceScene {
   start() {
     this.dispose();
     const o = this.opts;
-    this.humanInput = { throttle: 0, brake: 0, steer: 0, useItem: false };
+    this.humanInput = { throttle: 0, brake: 0, steer: 0, useItem: false, fuse: false, cycle: false };
     this.race = new Race({
       track: meadow,
       seed: o.seed ?? Math.floor(Math.random() * 1e9),
@@ -94,6 +94,8 @@ export class RaceScene {
     const rate = want === 0 || Math.sign(want) !== Math.sign(h.steer) ? STEER_RATE * 1.6 : STEER_RATE;
     h.steer = approach(h.steer, want, rate * dt);
     if (input.wasPressed('item')) h.useItem = true;
+    if (input.wasPressed('fuse')) h.fuse = true;
+    if (input.wasPressed('cycle')) h.cycle = true;
 
     const p = this.race.player;
     if (p && this.race.phase !== 'countdown' && !p.finished) game.sound.setEngine(Math.max(0, p.forwardSpeed) / p.base.maxSpeed);
@@ -103,8 +105,10 @@ export class RaceScene {
   update(dt) {
     if (this.paused) return;
     this.race.step(dt);
-    // An item press lasts until one step has seen it.
+    // A hand press (use, fuse, next) lasts until one step has seen it.
     this.humanInput.useItem = false;
+    this.humanInput.fuse = false;
+    this.humanInput.cycle = false;
     if (this.race.phase === 'done' && this.resultsAt === null) this.resultsAt = this.clock + 1.2;
   }
 

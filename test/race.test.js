@@ -117,8 +117,9 @@ test('AI rivals finish a three-lap race on their own, on several seeds', () => {
     const { results, timedOut } = simulateRace({ seed, laps: 3, karts: 4, maxSeconds: 240 });
     assert.equal(timedOut, false, `seed ${seed} timed out`);
     assert.ok(results.every((r) => r.finished));
-    // Sanity: laps take between 20 and 60 seconds.
-    for (const r of results) for (const t of r.lapTimes) assert.ok(t > 20 && t < 60, `${r.name} lap ${t}`);
+    // Sanity: laps are a sensible length. (A SWAP can make one lap short or long, since
+    // you trade lap clocks along with places, so the window is wide.)
+    for (const r of results) for (const t of r.lapTimes) assert.ok(t > 3 && t < 90, `${r.name} lap ${t}`);
   }
 });
 

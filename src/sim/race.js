@@ -2,14 +2,16 @@
 // It runs in fixed steps and has no idea a browser exists, so it runs the same in
 // the game, in tests and in the headless simulator (npm run sim).
 
-import { RACE, SURFACE, WALL, BUMP, ITEMS, SIM } from '../config.js';
+import { RACE, SURFACE, WALL, BUMP, SIM } from '../config.js';
 import { Rng } from '../core/rng.js';
 import { Events } from '../core/events.js';
 import { loopDelta, sign } from '../core/math.js';
 import { Track } from './track.js';
 import { Kart, stepKart } from './kart.js';
 import { placeItemBoxes } from './entities.js';
-import { powerups } from './powerups/index.js';
+import './powerups/index.js';
+import { useFrontItem, fuseFront, cycleHand } from './hand.js';
+import { hitKart } from './hits.js';
 import { HumanController } from './controllers.js';
 import { AIDriver } from '../ai/driver.js';
 
@@ -76,8 +78,8 @@ export class Race {
     this.updatePositions();
   }
 
-  /** The context object powerups receive. */
-  context(kart) {
+  /** The context object powerups receive (see src/sim/powerups/registry.js). */
+  context(kart, extra = {}) {
     return {
       race: this,
       kart,
@@ -86,7 +88,29 @@ export class Race {
       spawn: (e) => this.spawn(e),
       position: kart.position,
       racers: this.karts.length,
+      power: 1,
+      item: null,
+      ...extra,
     };
+  }
+
+  /** Karts still racing, best first. */
+  stillRacing() {
+    return this.order.filter((k) => !k.finished);
+  }
+
+  /** Karts still racing that are ahead of this one on the course, nearest first. */
+  kartsAhead(kart) {
+    return this.karts
+      .filter((k) => k !== kart && !k.finished && k.progress > kart.progress)
+      .sort((a, b) => a.progress - b.progress);
+  }
+
+  /** Karts still racing that are behind this one, nearest first. */
+  kartsBehind(kart) {
+    return this.karts
+      .filter((k) => k !== kart && !k.finished && k.progress <= kart.progress)
+      .sort((a, b) => b.progress - a.progress);
   }
 
   spawn(entity) {
@@ -121,7 +145,8 @@ export class Race {
       e.update(dt, this);
       if (e.onKartTouch && e.radius > 0) {
         for (const kart of this.karts) {
-          const r = e.radius + kart.base.radius;
+          if (!e.alive) break;
+          const r = e.radius + kart.radius;
           const dx = kart.x - e.x;
           const dy = kart.y - e.y;
           if (dx * dx + dy * dy <= r * r) e.onKartTouch(kart, this);
@@ -138,30 +163,22 @@ export class Race {
   stepOne(kart, dt) {
     const c = kart.controls;
     c.useItem = false;
+    c.fuse = false;
+    c.cycle = false;
     kart.controller?.update(kart, this, dt);
 
-    if (kart.item !== null) {
-      if (kart.itemRoulette > 0) kart.itemRoulette = Math.max(0, kart.itemRoulette - dt);
-      else kart.itemHeld += dt;
-    }
+    for (const item of kart.items) if (item.roulette > 0) item.roulette = Math.max(0, item.roulette - dt);
 
     // Effects run after the controller, so they can override what the driver asked for.
     kart.effects.tick(kart, dt, this);
 
-    if (c.useItem && kart.itemReady && kart.itemHeld >= ITEMS.useCooldown) this.useItem(kart);
+    // Hand actions, in this order, so "fuse then use" can happen in one step.
+    if (c.cycle) cycleHand(kart, this);
+    if (c.fuse) fuseFront(kart, this);
+    if (c.useItem) useFrontItem(kart, this);
 
     stepKart(kart, dt, SURFACE[kart.surface]);
     this.applyTrack(kart);
-  }
-
-  useItem(kart) {
-    const def = powerups.get(kart.item);
-    const id = kart.item;
-    kart.item = null;
-    kart.itemHeld = 0;
-    if (!def) return;
-    def.use(this.context(kart));
-    this.events.emit('item:use', { kart, item: id });
   }
 
   /** Track position, surface, the fence, and distance travelled. */
@@ -171,7 +188,7 @@ export class Race {
     kart.trackIndex = p.index;
     let lateral = p.lateral;
 
-    const limit = track.fenceOffset - kart.base.radius;
+    const limit = track.fenceOffset - kart.radius;
     if (Math.abs(lateral) > limit) {
       const side = sign(lateral);
       const over = Math.abs(lateral) - limit;
@@ -207,7 +224,7 @@ export class Race {
         const b = karts[j];
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        const r = a.base.radius + b.base.radius;
+        const r = a.radius + b.radius;
         const d2 = dx * dx + dy * dy;
         if (d2 >= r * r || d2 === 0) continue;
         const d = Math.sqrt(d2);
@@ -231,6 +248,11 @@ export class Race {
           if (-rv > 12) {
             a.lastBump = b.lastBump = this.time;
             this.events.emit('bump', { a, b, impact: -rv });
+          }
+          // RAM and STAMPEDE: hitting someone while charging spins them out.
+          if (-rv > 6) {
+            if (a.effects.hasTag('ram') && !b.effects.hasTag('ram')) hitKart(b, this, { by: a, kind: 'ram' });
+            if (b.effects.hasTag('ram') && !a.effects.hasTag('ram')) hitKart(a, this, { by: b, kind: 'ram' });
           }
         }
       }

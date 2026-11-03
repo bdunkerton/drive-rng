@@ -21,16 +21,24 @@ const karts = Number(opt('karts', 4));
 const runs = Number(opt('runs', 1));
 
 function runOne(seed) {
-  const stats = { pickups: {}, uses: {}, walls: 0, bumps: 0 };
+  const stats = { pickups: {}, uses: {}, walls: 0, bumps: 0, events: {} };
+  const count = (name) => (stats.events[name] = (stats.events[name] ?? 0) + 1);
   const { race, results, timedOut } = simulateRace({
     seed,
     laps,
     karts,
     onSetup(r) {
       r.events.on('item:pickup', ({ item }) => (stats.pickups[item] = (stats.pickups[item] ?? 0) + 1));
-      r.events.on('item:use', ({ item }) => (stats.uses[item] = (stats.uses[item] ?? 0) + 1));
+      r.events.on('item:use', ({ name }) => (stats.uses[name] = (stats.uses[name] ?? 0) + 1));
       r.events.on('wall', () => stats.walls++);
       r.events.on('bump', () => stats.bumps++);
+      r.events.on('item:fuse', () => count('fuses'));
+      r.events.on('hit', () => count('spin-outs'));
+      r.events.on('shield:pop', () => count('blocks'));
+      r.events.on('swap', () => count('swaps'));
+      r.events.on('steal', () => count('steals'));
+      r.events.on('copy', () => count('copies'));
+      r.events.on('chaos', ({ kart, who }) => count(kart === who ? 'chaos' : 'chaos backfires'));
     },
   });
   return { race, results, timedOut, stats };
@@ -45,8 +53,10 @@ if (runs === 1) {
     const time = r.finished ? formatTime(r.time) : 'DNF      ';
     console.log(`  ${String(r.position).padEnd(4)} ${r.name.padEnd(8)} ${time.padEnd(10)} ${formatTime(r.bestLap).padEnd(10)} ${r.lapTimes.map((t) => t.toFixed(2)).join('  ')}`);
   }
-  console.log(`\n  items picked up: ${JSON.stringify(stats.pickups)}`);
-  console.log(`  items used:      ${JSON.stringify(stats.uses)}`);
+  const list = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(', ') || 'none';
+  console.log(`\n  picked up: ${list(stats.pickups)}`);
+  console.log(`  used:      ${list(stats.uses)}`);
+  console.log(`  happened:  ${list(stats.events)}`);
   console.log(`  wall hits: ${stats.walls}   bumps: ${stats.bumps}`);
   if (timedOut) console.log('\n  !! The race timed out before every kart finished.');
   console.log('');
@@ -55,6 +65,7 @@ if (runs === 1) {
   const wins = {};
   const totals = {};
   const uses = {};
+  const happened = {};
   let timeouts = 0;
   for (let seed = 1; seed <= runs; seed++) {
     const { results, timedOut, stats } = runOne(seed);
@@ -62,6 +73,7 @@ if (runs === 1) {
     wins[results[0].name] = (wins[results[0].name] ?? 0) + 1;
     for (const r of results) if (r.finished) (totals[r.name] ??= []).push(r.time);
     for (const [k, v] of Object.entries(stats.uses)) uses[k] = (uses[k] ?? 0) + v;
+    for (const [k, v] of Object.entries(stats.events)) happened[k] = (happened[k] ?? 0) + v;
   }
   console.log(`\nDrive RNG sim  ·  ${runs} races  ·  ${laps} laps  ·  ${karts} karts\n`);
   console.log('  RACER    WINS   AVG TIME');
@@ -69,7 +81,9 @@ if (runs === 1) {
     const t = totals[name];
     console.log(`  ${name.padEnd(8)} ${String(wins[name] ?? 0).padEnd(6)} ${formatTime(t.reduce((a, b) => a + b, 0) / t.length)}`);
   }
-  console.log(`\n  items used per race: ${Object.entries(uses).map(([k, v]) => `${k} ${(v / runs).toFixed(1)}`).join(', ') || 'none'}`);
+  const perRace = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${(v / runs).toFixed(1)}`).join(', ') || 'none';
+  console.log(`\n  used per race:     ${perRace(uses)}`);
+  console.log(`  happened per race: ${perRace(happened)}`);
   console.log(`  timeouts: ${timeouts}\n`);
   process.exitCode = timeouts ? 1 : 0;
 }

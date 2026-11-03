@@ -53,10 +53,28 @@ export const RACE = {
 export const ITEMS = {
   boxRadius: 6,
   boxRespawnSeconds: 3.5,
-  // How long the item slot "spins" after a pickup before the item can be used.
+  // How long a slot "spins" after a pickup before the item can be used or fused.
   rouletteSeconds: 0.9,
-  // Seconds a kart holds an item before it can use it (stops instant double taps).
-  useCooldown: 0.25,
+  // Item slots every kart starts with, and the most Take Two can grow a hand to.
+  baseSlots: 2,
+  maxSlots: 4,
+  // Most powerups one fused item can hold (SUPER BOOST is 2, BOOST+SHIELD+ROCKET is 3).
+  maxParts: 4,
+};
+
+export const HAZARDS = {
+  rocketSpeed: 300,     // a boosted kart tops out around 205
+  rocketLife: 10,
+  rocketHoming: 140,    // sideways pixels per second a rocket can swerve toward its target
+  rocketLockOn: 220,    // starts swerving when this close behind its target
+  bananaLife: 45,
+};
+
+export const HITS = {
+  // Getting hit by a rocket, a banana or a ram.
+  spinSeconds: 0.9,
+  spinRate: 13,         // radians per second the kart twirls
+  spinGrip: 0.15,       // grip multiplier while spinning (it slides)
 };
 
 export const AI = {
@@ -70,6 +88,10 @@ export const AI = {
   // Seconds between deciding to use an item and pressing the button.
   itemDelayMin: 0.4,
   itemDelayMax: 2.2,
+  // Chance a rival holding two ready items fuses them instead of using the front one.
+  fuseChance: 0.35,
+  // A rival that doesn't want its front item for this long cycles past it (or just uses it).
+  holdSeconds: 4,
   stuckSeconds: 1.4,
   reverseSeconds: 0.7,
 };

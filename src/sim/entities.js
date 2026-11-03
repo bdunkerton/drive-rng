@@ -1,5 +1,5 @@
-// Things on the track that aren't karts: item boxes today; shells, oil slicks,
-// banana peels and whatever else tomorrow.
+// Things on the track that aren't karts: item boxes here; rockets and bananas in
+// ./hazards.js; whatever else tomorrow.
 //
 // An entity is any object with:
 //   kind            string, used by the renderer to pick a drawing (src/render/entityArt.js)
@@ -14,6 +14,8 @@
 
 import { ITEMS } from '../config.js';
 import { powerups } from './powerups/index.js';
+import { makeItem, giveItem } from './hand.js';
+import { toast } from './toast.js';
 
 export const ROULETTE_SECONDS = ITEMS.rouletteSeconds;
 
@@ -42,14 +44,17 @@ export class ItemBox {
     this.active = false;
     this.respawnIn = ITEMS.boxRespawnSeconds;
     race.events.emit('item:box', { kart, box: this });
-    // A kart already holding something just smashes the box.
-    if (kart.item !== null) return;
+    // A full hand (or a finished kart) just smashes the box.
+    if (!kart.hasFreeSlot || kart.finished) return;
     const id = powerups.roll(race.rng, race.context(kart));
     if (!id) return;
-    kart.item = id;
-    kart.itemRoulette = ROULETTE_SECONDS;
-    kart.itemHeld = 0;
-    race.events.emit('item:pickup', { kart, item: id });
+    giveItem(kart, makeItem([id], ROULETTE_SECONDS));
+    // Take Two: extra copies of this pickup. With no room left they fuse onto it (SUPER).
+    const extra = kart.extraCopies;
+    kart.extraCopies = 0;
+    for (let i = 0; i < extra; i++) giveItem(kart, makeItem([id], ROULETTE_SECONDS), { overflow: 'fuse' });
+    if (extra > 0) toast(race, kart, `X${extra + 1} PICKUP!`, 'gold');
+    race.events.emit('item:pickup', { kart, item: id, copies: extra + 1 });
   }
 }
 

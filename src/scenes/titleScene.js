@@ -59,21 +59,23 @@ export class TitleScene {
     drawOutlinedText(g, 'DRIVE RNG', VIEW.width / 2, 24 + bob, { color: PAL.gold, scale: 4, align: 'center' });
     drawText(g, 'PIXEL RACING CHAOS', VIEW.width / 2, 50, { color: PAL.white, align: 'center' });
 
-    drawPanel(g, VIEW.width / 2 - 70, 66, 140, 42);
-    drawMenu(g, this.lines, this.index, VIEW.width / 2, 72, { clock: this.clock, spacing: 12 });
+    drawPanel(g, VIEW.width / 2 - 70, 62, 140, 44);
+    drawMenu(g, this.lines, this.index, VIEW.width / 2, 68, { clock: this.clock, spacing: 12 });
 
-    drawPanel(g, VIEW.width / 2 - 110, 118, 220, 46);
+    drawPanel(g, VIEW.width / 2 - 110, 112, 220, 56);
     const help = [
       ['ARROWS / WASD', 'DRIVE'],
-      ['SPACE', 'USE ITEM'],
+      ['SPACE', 'USE FRONT ITEM'],
+      ['F / Q', 'FUSE FRONT TWO ITEMS'],
+      ['C / R', 'NEXT ITEM TO THE FRONT'],
       ['P / ESC', 'PAUSE'],
       ['M', 'MUTE'],
     ];
     help.forEach(([key, what], i) => {
-      drawText(g, key, VIEW.width / 2 - 6, 124 + i * 9, { color: PAL.gold, align: 'right' });
-      drawText(g, what, VIEW.width / 2 + 6, 124 + i * 9, { color: PAL.white });
+      drawText(g, key, VIEW.width / 2 - 26, 117 + i * 8, { color: PAL.gold, align: 'right' });
+      drawText(g, what, VIEW.width / 2 - 14, 117 + i * 8, { color: PAL.white });
     });
-    drawText(g, 'CLICK THE GAME FIRST IF KEYS DO NOTHING', VIEW.width / 2, 170, { color: PAL.silver, align: 'center' });
+    drawText(g, 'CLICK THE GAME FIRST IF KEYS DO NOTHING', VIEW.width / 2, 172, { color: PAL.silver, align: 'center' });
   }
 
   dispose() {

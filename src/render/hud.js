@@ -4,9 +4,9 @@
 import { VIEW } from '../config.js';
 import { PAL, KART_COLOURS } from './palette.js';
 import { drawText, drawOutlinedText } from './font.js';
-import { icon } from './icons.js';
 import { paintMinimap } from './trackArt.js';
-import { powerups } from '../sim/powerups/index.js';
+import { drawItemPicture, SLOT } from './itemArt.js';
+import { itemName, isReady } from '../sim/hand.js';
 import { angleDiff } from '../core/math.js';
 
 export function formatTime(t) {
@@ -23,6 +23,9 @@ export function ordinal(n) {
 }
 
 const PLACE_COLOURS = [PAL.gold, PAL.silver, PAL.bronze];
+const TOAST_COLOURS = { white: PAL.white, gold: PAL.gold, good: '#7fe05a', bad: PAL.danger };
+const TOAST_SECONDS = 2;
+const MAX_TOASTS = 3;
 
 export class Hud {
   constructor(race) {
@@ -31,6 +34,7 @@ export class Hud {
     this.clock = 0;
     this.wrongWayFor = 0;
     this.minimap = paintMinimap(race.track, 70, 52);
+    this.toasts = []; // { text, colour, born }
     this.unsubscribe = this.listen(race);
   }
 
@@ -45,6 +49,11 @@ export class Hud {
     });
     on('final-lap', ({ kart }) => isPlayer(kart) && this.show('FINAL LAP!', PAL.gold, 1.6, 3));
     on('finish', ({ kart, place }) => isPlayer(kart) && this.show(`FINISH! ${ordinal(place)}`, PLACE_COLOURS[place - 1] ?? PAL.white, 3, 3));
+    on('toast', ({ kart, text, colour }) => {
+      if (!isPlayer(kart)) return;
+      this.toasts.push({ text, colour: TOAST_COLOURS[colour] ?? PAL.white, born: this.clock });
+      if (this.toasts.length > MAX_TOASTS) this.toasts.shift();
+    });
     return () => offs.forEach((off) => off());
   }
 
@@ -54,6 +63,7 @@ export class Hud {
 
   update(dt) {
     this.clock += dt;
+    this.toasts = this.toasts.filter((t) => this.clock - t.born < TOAST_SECONDS);
     const p = this.race.player;
     if (p && this.race.phase === 'racing' && !p.finished) {
       const facing = Math.abs(angleDiff(p.heading, this.race.track.headingAt(p.s)));
@@ -92,8 +102,9 @@ export class Hud {
       drawText(g, `OF ${race.karts.length}`, VIEW.width - 8, 24, { color: PAL.white, align: 'right' });
     }
 
-    // Item slot, top centre.
-    if (race.player) this.drawItemSlot(g, race.player);
+    // Item hand, top centre, and the messages under it.
+    if (race.player) this.drawHand(g, race.player);
+    this.drawToasts(g);
 
     // Speed bar, bottom left.
     if (race.player) this.drawSpeed(g, race.player);
@@ -113,30 +124,41 @@ export class Hud {
     }
   }
 
-  drawItemSlot(g, kart) {
-    const x = VIEW.width / 2 - 10;
+  drawHand(g, kart) {
+    const gap = 2;
+    const total = kart.slots * SLOT + (kart.slots - 1) * gap;
+    const x0 = Math.round(VIEW.width / 2 - total / 2);
     const y = 4;
-    g.fillStyle = PAL.hudBg;
-    g.fillRect(x, y, 20, 20);
-    g.fillStyle = PAL.hudEdge;
-    g.fillRect(x, y, 20, 1);
-    g.fillRect(x, y + 19, 20, 1);
-    g.fillRect(x, y, 1, 20);
-    g.fillRect(x + 19, y, 1, 20);
-    if (kart.item === null) return;
-    let def = powerups.get(kart.item);
-    if (kart.itemRoulette > 0) {
-      const all = powerups.list();
-      def = all[Math.floor(this.clock * 14) % all.length];
-      // With a single powerup the roulette flickers so it still reads as "spinning".
-      if (all.length === 1 && Math.floor(this.clock * 14) % 2) return;
+    for (let i = 0; i < kart.slots; i++) {
+      const x = x0 + i * (SLOT + gap);
+      const front = i === 0;
+      g.fillStyle = PAL.hudBg;
+      g.fillRect(x, y, SLOT, SLOT);
+      g.fillStyle = front ? PAL.gold : 'rgba(232,226,208,0.55)';
+      g.fillRect(x, y, SLOT, 1);
+      g.fillRect(x, y + SLOT - 1, SLOT, 1);
+      g.fillRect(x, y, 1, SLOT);
+      g.fillRect(x + SLOT - 1, y, 1, SLOT);
+      const item = kart.items[i];
+      if (item) drawItemPicture(g, item, x, y, this.clock + i * 0.37);
     }
-    if (!def) return;
-    g.drawImage(icon(def.icon), x + 3, y + 3);
-    if (kart.itemRoulette <= 0) {
-      drawText(g, def.name, VIEW.width / 2, y + 23, { color: PAL.white, align: 'center' });
-      drawText(g, 'SPACE', VIEW.width / 2, y + 30, { color: PAL.silver, align: 'center' });
-    }
+    if (kart.extraCopies > 0) drawText(g, `X${kart.extraCopies + 1}`, x0 + total + 3, y + 6, { color: PAL.gold });
+
+    const front = kart.items[0];
+    if (!front) return;
+    const ready = isReady(front);
+    if (ready) drawText(g, itemName(front), VIEW.width / 2, y + SLOT + 3, { color: PAL.white, align: 'center' });
+    const keys = ['SPACE USE'];
+    if (kart.items.length > 1) keys.push('F FUSE', 'C NEXT');
+    drawText(g, keys.join('  '), VIEW.width / 2, y + SLOT + 10, { color: PAL.silver, align: 'center' });
+  }
+
+  drawToasts(g) {
+    this.toasts.forEach((t, i) => {
+      const age = this.clock - t.born;
+      if (age > TOAST_SECONDS - 0.4 && Math.floor(age * 10) % 2) return; // blink out
+      drawText(g, t.text, VIEW.width / 2, 42 + i * 7, { color: t.colour, align: 'center' });
+    });
   }
 
   drawSpeed(g, kart) {

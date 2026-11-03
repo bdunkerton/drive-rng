@@ -7,6 +7,8 @@ export const BINDINGS = {
   up: ['ArrowUp', 'KeyW'],
   down: ['ArrowDown', 'KeyS'],
   item: ['Space', 'KeyE', 'KeyX'],
+  fuse: ['KeyF', 'KeyQ'],
+  cycle: ['KeyC', 'KeyR'],
   confirm: ['Enter', 'Space'],
   pause: ['Escape', 'KeyP'],
   back: ['Escape', 'Backspace'],
@@ -22,7 +24,7 @@ export class Input {
     this.pressed = new Set();
     this.onAnyKey = null;
     target.addEventListener('keydown', (e) => {
-      if (GAME_KEYS.has(e.code) || /^Digit[1-9]$/.test(e.code)) e.preventDefault();
+      if (GAME_KEYS.has(e.code) || /^Digit[0-9]$/.test(e.code)) e.preventDefault();
       if (!e.repeat) this.pressed.add(e.code);
       this.down.add(e.code);
       this.onAnyKey?.();
@@ -40,9 +42,10 @@ export class Input {
     return BINDINGS[action].some((code) => this.pressed.has(code));
   }
 
-  /** 1-9 if a number key was pressed this frame, else null. */
+  /** 1-10 if a number key was pressed this frame (0 counts as 10), else null. */
   digitPressed() {
     for (let i = 1; i <= 9; i++) if (this.pressed.has(`Digit${i}`)) return i;
+    if (this.pressed.has('Digit0')) return 10;
     return null;
   }
 

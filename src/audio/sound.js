@@ -74,6 +74,21 @@ export class Sound {
       case 'boost':
         this.noise(0.5, { volume: 0.18, filter: 1800 });
         return this.tone(180, 0.5, { type: 'sawtooth', volume: 0.1, slideTo: 720 });
+      case 'rocket':
+        this.noise(0.4, { volume: 0.14, filter: 2500 });
+        return this.tone(300, 0.35, { type: 'sawtooth', volume: 0.07, slideTo: 900 });
+      case 'spin': return this.tone(900, 0.5, { type: 'triangle', volume: 0.12, slideTo: 120 });
+      case 'block': return [0, 0.06].forEach((d) => this.tone(1500, 0.08, { type: 'triangle', volume: 0.1, delay: d }));
+      case 'shield': return this.tone(400, 0.3, { type: 'triangle', volume: 0.1, slideTo: 1200 });
+      case 'swap': return [0, 0.07, 0.14].forEach((d, i) => this.tone([900, 500, 1100][i], 0.1, { type: 'square', volume: 0.07, delay: d }));
+      case 'steal': return this.tone(1200, 0.2, { type: 'square', volume: 0.07, slideTo: 300 });
+      case 'magnet': return this.tone(120, 0.4, { type: 'sawtooth', volume: 0.08, slideTo: 240 });
+      case 'grow': return this.tone(110, 0.6, { type: 'square', volume: 0.1, slideTo: 55 });
+      case 'chaos': return [0, 0.05, 0.1, 0.15, 0.2].forEach((d) => this.tone(300 + Math.random() * 1200, 0.06, { volume: 0.07, delay: d }));
+      case 'fuse': return [0, 0.08].forEach((d, i) => this.tone(660 * (i + 1), 0.15, { type: 'triangle', volume: 0.1, delay: d }));
+      case 'copy': return [0, 0.1].forEach((d) => this.tone(1046, 0.08, { volume: 0.08, delay: d }));
+      case 'take-two': return [0, 0.08, 0.16].forEach((d, i) => this.tone(523 * [1, 1.5, 2][i], 0.1, { volume: 0.08, delay: d }));
+      case 'drop': return this.tone(220, 0.12, { type: 'triangle', volume: 0.1, slideTo: 140 });
       case 'wall': return this.noise(0.15, { volume: 0.25, filter: 400 });
       case 'bump': return this.tone(140, 0.1, { volume: 0.12, slideTo: 70 });
       case 'lap': return [0, 0.09].forEach((d, i) => this.tone(784 + i * 262, 0.12, { volume: 0.1, delay: d }));

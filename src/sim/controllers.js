@@ -1,9 +1,9 @@
 // Controllers write a kart's `controls` each step.
 // The human controller copies from a plain input object that the browser keeps
-// up to date (see src/core/input.js); the simulation never touches the DOM.
+// up to date (see src/scenes/raceScene.js); the simulation never touches the DOM.
 
 export class HumanController {
-  /** @param {{ throttle: number, brake: number, steer: number, useItem: boolean }} input */
+  /** @param {{ throttle: number, brake: number, steer: number, useItem: boolean, fuse?: boolean, cycle?: boolean }} input */
   constructor(input) {
     this.input = input;
   }
@@ -14,6 +14,8 @@ export class HumanController {
     c.brake = this.input.brake;
     c.steer = this.input.steer;
     c.useItem = this.input.useItem;
+    c.fuse = !!this.input.fuse;
+    c.cycle = !!this.input.cycle;
   }
 }
 
@@ -25,5 +27,7 @@ export class IdleController {
     c.brake = 0;
     c.steer = 0;
     c.useItem = false;
+    c.fuse = false;
+    c.cycle = false;
   }
 }

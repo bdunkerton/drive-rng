@@ -32,6 +32,44 @@ export const ENTITY_ART = {
   },
 };
 
+ENTITY_ART.rocket = (g, r, sx, sy) => {
+  const cx = Math.cos(r.angle);
+  const cy = Math.sin(r.angle);
+  g.fillStyle = PAL.shadow;
+  g.fillRect(sx - 2, sy + 3, 5, 2);
+  for (let t = -3; t <= 3; t++) {
+    g.fillStyle = t === 3 ? PAL.white : t <= -3 ? PAL.boostHot : '#e0463a';
+    g.fillRect(Math.round(sx + cx * t) - 1, Math.round(sy + cy * t) - 1, 2, 2);
+  }
+  if (r.steal) {
+    // HEIST rockets carry a little magnet tip.
+    g.fillStyle = PAL.silver;
+    g.fillRect(Math.round(sx + cx * 4) - 1, Math.round(sy + cy * 4) - 1, 2, 2);
+  }
+};
+
+const BANANA = [
+  '...kd',
+  '...yd',
+  '..yyd',
+  'yyyd.',
+  '.dd..',
+];
+const BANANA_COLOURS = { y: '#f5d442', d: '#c9a21e', k: '#5a3b22' };
+
+ENTITY_ART.banana = (g, b, sx, sy) => {
+  g.fillStyle = PAL.shadow;
+  g.fillRect(sx - 2, sy + 2, 5, 2);
+  for (let y = 0; y < BANANA.length; y++) {
+    for (let x = 0; x < BANANA[y].length; x++) {
+      const col = BANANA_COLOURS[BANANA[y][x]];
+      if (!col) continue;
+      g.fillStyle = col;
+      g.fillRect(sx - 2 + x, sy - 3 + y, 1, 1);
+    }
+  }
+};
+
 export function drawEntity(g, entity, sx, sy) {
   const draw = ENTITY_ART[entity.kind];
   if (draw) draw(g, entity, sx, sy);

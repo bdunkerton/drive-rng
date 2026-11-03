@@ -1,9 +1,11 @@
 // The rivals' brain. Each step it looks a little way up the road, aims at a point
-// on (roughly) the racing line, slows for bends it can see coming, and fires its
-// item when the road ahead is straight. It also backs out if it gets stuck.
+// on (roughly) the racing line, slows for bends it can see coming, and plays its
+// hand: fusing sometimes, using items when they'd do something. It also backs out if
+// it gets stuck.
 
 import { AI } from '../config.js';
 import { clamp, angleDiff, lerp } from '../core/math.js';
+import { isReady, canFuse, aiWantsItem } from '../sim/hand.js';
 
 export class AIDriver {
   /**
@@ -21,6 +23,8 @@ export class AIDriver {
     this.stuckFor = 0;
     this.reverseFor = 0;
     this.itemDelay = null;
+    this.holdingFor = 0;
+    this.fuseRoll = undefined;
     // Debug view reads these.
     this.debug = { tx: 0, ty: 0, targetSpeed: 0 };
   }
@@ -88,26 +92,49 @@ export class AIDriver {
     }
 
     // --- Items ----------------------------------------------------------------
-    let useItem = false;
-    if (kart.itemReady) {
-      if (this.itemDelay === null) this.itemDelay = this.rng.range(AI.itemDelayMin, AI.itemDelayMax);
-      this.itemDelay -= dt;
-      const straightAhead = track.bendBetween(kart.s, kart.s + 140) < 0.45;
-      if (this.itemDelay <= 0 && straightAhead && this.reverseFor <= 0) {
-        useItem = true;
-        this.itemDelay = null;
-      }
-    } else {
-      this.itemDelay = null;
-    }
+    const hand = this.decideItems(kart, race, dt);
 
     c.throttle = throttle;
     c.brake = brake;
     c.steer = steer;
-    c.useItem = useItem;
+    c.useItem = hand.useItem;
+    c.fuse = hand.fuse;
+    c.cycle = hand.cycle;
     this.debug.tx = target.x;
     this.debug.ty = target.y;
     this.debug.targetSpeed = targetSpeed;
+  }
+
+  /**
+   * After a short "thinking" delay: maybe fuse the front two items, otherwise use the
+   * front one if it's a good moment for it (each powerup's aiWants), otherwise wait.
+   * An item it has sat on too long gets cycled to the back, or just used.
+   */
+  decideItems(kart, race, dt) {
+    const out = { useItem: false, fuse: false, cycle: false };
+    const [front, second] = kart.items;
+    if (kart.finished || race.phase !== 'racing' || !isReady(front) || this.reverseFor > 0) {
+      this.itemDelay = null;
+      this.holdingFor = 0;
+      return out;
+    }
+    if (this.itemDelay === null) this.itemDelay = this.rng.range(AI.itemDelayMin, AI.itemDelayMax);
+    this.itemDelay -= dt;
+    if (this.itemDelay > 0) return out;
+
+    if (canFuse(front, second) && this.fuseRoll === undefined) this.fuseRoll = this.rng.chance(AI.fuseChance);
+    if (canFuse(front, second) && this.fuseRoll) out.fuse = true;
+    else if (aiWantsItem(front, kart, race)) out.useItem = true;
+    else {
+      this.holdingFor = (this.holdingFor ?? 0) + dt;
+      if (this.holdingFor < AI.holdSeconds) return out;
+      if (kart.items.length > 1) out.cycle = true;
+      else out.useItem = true;
+    }
+    this.itemDelay = null;
+    this.holdingFor = 0;
+    this.fuseRoll = undefined;
+    return out;
   }
 
   /** A kart a short way ahead in roughly the same lane, going slower. */

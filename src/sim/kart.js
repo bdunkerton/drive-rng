@@ -2,7 +2,7 @@
 // `stepKart` is the driving physics. It knows nothing about the track; race.js
 // applies surfaces and the fence after each step.
 
-import { KART } from '../config.js';
+import { KART, ITEMS } from '../config.js';
 import { clamp, approach } from '../core/math.js';
 import { EffectList, STAT_KEYS } from './effects.js';
 
@@ -22,15 +22,16 @@ export class Kart {
     this.base = { ...KART };
 
     // What the driver is asking for this step. Controllers write this; effects may override it.
-    this.controls = { throttle: 0, brake: 0, steer: 0, useItem: false };
+    // useItem / fuse / cycle are one-step presses.
+    this.controls = { throttle: 0, brake: 0, steer: 0, useItem: false, fuse: false, cycle: false };
     this.controller = null;
 
     this.effects = new EffectList();
 
-    // Items
-    this.item = null;          // powerup id, or null
-    this.itemRoulette = 0;     // seconds left on the "spinning" animation; can't use until 0
-    this.itemHeld = 0;         // seconds since the item settled
+    // Items: see src/sim/hand.js
+    this.items = [];                // held items, front first: { parts: [ids], roulette }
+    this.slots = ITEMS.baseSlots;   // how many it can hold
+    this.extraCopies = 0;           // Take Two: the next box pickup comes with this many extra copies
 
     // Track position (filled in by the race)
     this.s = 0;
@@ -66,9 +67,25 @@ export class Kart {
     return Math.hypot(this.vx, this.vy);
   }
 
-  /** Can the held item be used right now? */
+  /** Collision radius. Effects can scale it (GROW doubles it). */
+  get radius() {
+    return this.base.radius * this.effects.multiplier('scale');
+  }
+
+  /** Drawing scale: 1 normally, 2 while giant. */
+  get scale() {
+    return this.effects.multiplier('scale');
+  }
+
+  /** Can the front item be used right now? */
   get itemReady() {
-    return this.item !== null && this.itemRoulette <= 0;
+    const front = this.items[0];
+    return !!front && front.roulette <= 0;
+  }
+
+  /** Is there room for another item? */
+  get hasFreeSlot() {
+    return this.items.length < this.slots;
   }
 
   addEffect(effect, race) {

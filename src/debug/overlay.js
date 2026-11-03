@@ -1,11 +1,13 @@
 // Developer overlay, toggled with the backtick key (`) or ?debug=1 in the URL.
-// Shows the centreline, racing line, fence, AI aim points and live numbers, and
-// lists every registered powerup: press its number to put it in your item slot.
+// Shows the centreline, racing line, fence, AI aim points, rocket targets and live
+// numbers, and lists every registered powerup: press its number (1-9, 0 for the 10th)
+// to put it in your hand. Press the same number twice and fuse (F) to make a SUPER.
 
 import { VIEW } from '../config.js';
 import { PAL } from '../render/palette.js';
 import { drawText } from '../render/font.js';
 import { powerups } from '../sim/powerups/index.js';
+import { makeItem, giveItem, itemName } from '../sim/hand.js';
 import { AIDriver } from '../ai/driver.js';
 
 export function drawDebugWorld(g, race, camX, camY) {
@@ -31,40 +33,49 @@ export function drawDebugWorld(g, race, camX, camY) {
       }
     }
   }
-  for (const k of race.karts) {
-    if (!(k.controller instanceof AIDriver)) continue;
-    const { tx, ty } = k.controller.debug;
-    g.strokeStyle = '#ffe066';
+  const line = (ax, ay, bx, by, colour) => {
+    g.strokeStyle = colour;
     g.beginPath();
-    g.moveTo(Math.round(k.x - camX) + 0.5, Math.round(k.y - camY) + 0.5);
-    g.lineTo(Math.round(tx - camX) + 0.5, Math.round(ty - camY) + 0.5);
+    g.moveTo(Math.round(ax - camX) + 0.5, Math.round(ay - camY) + 0.5);
+    g.lineTo(Math.round(bx - camX) + 0.5, Math.round(by - camY) + 0.5);
     g.stroke();
+  };
+  for (const k of race.karts) {
+    if (k.controller instanceof AIDriver) line(k.x, k.y, k.controller.debug.tx, k.controller.debug.ty, '#ffe066');
+  }
+  for (const e of race.entities) {
+    if (e.kind === 'rocket' && e.target) line(e.x, e.y, e.target.x, e.target.y, '#ff3b6b');
   }
 }
 
 export function drawDebugPanel(g, race, fps) {
   const p = race.player ?? race.order[0];
-  const lines = [
+  const status = [
     `FPS ${Math.round(fps)}  SEED ${race.seed}`,
     `S ${p.s.toFixed(0)}/${race.track.length.toFixed(0)}  LAT ${p.lateral.toFixed(1)}`,
     `PROG ${p.progress.toFixed(0)}  LAPS ${p.lapsDone}`,
     `SPD ${p.forwardSpeed.toFixed(0)}  ${p.surface.toUpperCase()}`,
     `FX ${p.effects.active.map((e) => e.id).join(',') || '-'}`,
+    `HAND ${p.items.length}/${p.slots}  ${p.items.map(itemName).join(', ') || '-'}`,
     'GIVE ITEM:',
-    ...powerups.list().slice(0, 9).map((d, i) => `${i + 1} ${d.name}`),
   ];
+  const defs = powerups.list().slice(0, 10);
+  const rows = Math.ceil(defs.length / 2);
   const x = 6;
-  const y = VIEW.height - 16 - lines.length * 7;
+  const y = VIEW.height - 16 - (status.length + rows) * 7;
   g.fillStyle = 'rgba(0,0,0,0.6)';
-  g.fillRect(x - 2, y - 2, 120, lines.length * 7 + 3);
-  lines.forEach((line, i) => drawText(g, line, x, y + i * 7, { color: i >= 5 ? '#00e5ff' : PAL.white, shadow: null }));
+  g.fillRect(x - 2, y - 2, 150, (status.length + rows) * 7 + 3);
+  status.forEach((line, i) => drawText(g, line, x, y + i * 7, { color: i === status.length - 1 ? '#00e5ff' : PAL.white, shadow: null }));
+  defs.forEach((d, i) => {
+    const col = i < rows ? 0 : 1;
+    const row = i % rows;
+    drawText(g, `${(i + 1) % 10} ${d.name}`, x + col * 62, y + (status.length + row) * 7, { color: '#00e5ff', shadow: null });
+  });
 }
 
-/** Put the nth registered powerup straight into the player's slot (no roulette). */
+/** Put the nth registered powerup (1-10) straight into the player's hand, ready to use. */
 export function giveDebugItem(race, n) {
   const def = powerups.list()[n - 1];
   if (!def || !race.player) return;
-  race.player.item = def.id;
-  race.player.itemRoulette = 0;
-  race.player.itemHeld = 1;
+  giveItem(race.player, makeItem([def.id]), { overflow: 'fuse' });
 }
