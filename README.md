@@ -4,6 +4,8 @@ A top-down pixel kart racer where the items are the point. One track, three AI r
 
 Plain JavaScript in the browser. No build step and no dependencies.
 
+Plans for releasing it (CrazyGames first, then other sites, maybe Steam) are in [docs/LAUNCH_PLAN.md](docs/LAUNCH_PLAN.md).
+
 ## Play it
 
 **Online:** https://bdunkerton.github.io/drive-rng/ (GitHub Pages, served straight from `main`; a push shows up there within a few minutes). The URL options below work there too, e.g. `https://bdunkerton.github.io/drive-rng/?quick=1&laps=1`.
