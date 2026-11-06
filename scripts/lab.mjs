@@ -5,6 +5,8 @@
 //   npm run lab -- --moments 60        more moments per combo (slower, steadier numbers)
 //   npm run lab -- --only hook,boost   just the combos made from these items
 //   npm run lab -- --with black-hole   just the combos that have this item in them
+//   npm run lab -- --with yank,orbit   ...or any of these
+//   npm run lab -- --sort vibe         rank by "vibe" (momentum chaos) instead of score
 //   npm run lab -- --out lab.json      also write every number to a file
 //
 // How a "moment" works: an all-AI race (6 karts) runs to a chosen second, the kart in
@@ -73,6 +75,18 @@ export async function runMoment(sim, combo, m) {
     race.events.on('ramp:launch', (e) => by(e.ramp.owner, e.kart));
     race.events.on('tires:hit', (e) => by(e.tires.owner, e.kart));
     race.events.on('ricochet', (e) => e.kart === target && mark(e.by));
+    race.events.on('vault', (e) => by(e.kart, e.over));
+    race.events.on('siphon', (e) => by(e.kart, e.other));
+    race.events.on('cannon:hit', (e) => by(e.kart, e.other));
+    race.events.on('yank', (e) => by(e.kart, e.target));
+    race.events.on('lasso', (e) => by(e.kart, e.other));
+    race.events.on('orbit', (e) => by(e.kart, e.pole));
+    race.events.on('fling', (e) => e.kart === target && (e.karts ?? [e.other]).forEach(mark));
+    race.events.on('bands:snap', (e) => e.kart === target && e.karts.forEach(mark));
+    race.events.on('stomp', (e) => e.kart === target && e.karts.forEach(mark));
+    // Collisions the item's kart was in, and karts sent flying near it.
+    race.events.on('bump', ({ a, b, impact }) => (a === target || b === target) && impact > 30 && (watch.bumps = (watch.bumps ?? 0) + 1));
+    watch.flung = new Set();
     race.events.on('effect:start', ({ kart, effect }) => {
       // Fields that push and pull loosen the tyres of whoever they move.
       if ((effect.id === 'loose' || effect.id === 'phased') && target.effects.hasTag('move') && Math.hypot(kart.x - target.x, kart.y - target.y) < 110) mark(kart);
@@ -95,6 +109,13 @@ export async function runMoment(sim, combo, m) {
       lastProgress = target.progress;
       if (forward && Math.abs(angleDiff(target.heading, race.track.headingAt(target.s))) > 2.2 && target.speed > 40) watch.back += dt;
       watch.top = Math.max(watch.top, target.speed / target.base.maxSpeed);
+      if (withItem && target.effects.hasTag('move')) {
+        for (const o of race.karts) {
+          if (o === target || watch.flung.has(o.id)) continue;
+          const near = Math.hypot(o.x - target.x, o.y - target.y) < 90;
+          if (near && (o.speed > o.base.maxSpeed * 1.35 || (o.effects.hasTag('air') && !o.effects.hasTag('move')))) watch.flung.add(o.id);
+        }
+      }
     }
     return { race, target, start, watch, others: race.karts.filter((k) => k !== target).map((k) => ({ id: k.id, progress: k.progress })) };
   };
@@ -109,6 +130,8 @@ export async function runMoment(sim, combo, m) {
     endPlace: treat.target.position,
     chaos,
     ripple,
+    bumps: treat.watch.bumps ?? 0,
+    flung: treat.watch.flung.size,
     air: treat.watch.air,
     back: treat.watch.back,
     top: treat.watch.top,
@@ -140,6 +163,8 @@ export function summarise(combo, rows) {
     worse: mean(rows.map((r) => (r.dist < -10 ? 1 : 0))),
     chaos: mean(rows.map((r) => r.chaos)),
     ripple: mean(rows.map((r) => r.ripple)),
+    bumps: mean(rows.map((r) => r.bumps)),
+    flung: mean(rows.map((r) => r.flung)),
     air: mean(rows.map((r) => r.air)),
     back: mean(rows.map((r) => r.back)),
     top: mean(rows.map((r) => r.top)),
@@ -152,8 +177,11 @@ export function summarise(combo, rows) {
   // Spectacle is capped, so looking wild can't carry an item that does nothing to the race.
   const spectacle = Math.min(1.5, s.air + s.back + Math.min(1, Math.max(0, s.top - 1.6)));
   s.score = Math.max(0, s.gain) * 1.5 + s.big * 2 + s.chaos * 0.8 + spectacle * 0.8 + s.swing * 0.5 - Math.max(0, s.worse - 0.25) * 3;
+  // "Vibe": the PINBALL feel. Karts pulled in, bounced off, sent flying, and you coming
+  // out of it ahead. Rewards contact and flung karts, still wants you to gain.
+  s.vibe = Math.max(0, s.gain) * 1.2 + s.big * 1.5 + s.chaos * 0.9 + s.flung * 1.2 + Math.min(3, s.bumps) * 0.35 + s.swing * 0.3 - Math.max(0, s.worse - 0.3) * 3;
   // The single moment that best shows it off, for a clip.
-  const showy = (r) => Math.max(0, r.gain) * 2 + r.chaos + r.air + r.back * 2;
+  const showy = (r) => Math.max(0, r.gain) * 2 + r.chaos + r.air + r.back * 2 + (r.flung ?? 0) + Math.min(3, r.bumps ?? 0) * 0.5;
   s.best = rows.reduce((a, b) => (showy(b) > showy(a) ? b : a));
   return s;
 }
@@ -175,7 +203,7 @@ export function allCombos(sim, only = null, withId = null) {
   for (const a of ids) {
     for (const b of [null, ...ids]) {
       const parts = b ? [a, b] : [a];
-      if (withId && !parts.includes(withId)) continue;
+      if (withId && !withId.some((id) => parts.includes(id))) continue;
       const r = sim.resolveItem({ parts });
       out.push({ key: parts.join('+'), parts, name: r.name, kind: r.kind });
     }
@@ -199,7 +227,7 @@ if (!isMainThread) {
   };
   const n = Number(opt('moments', 24));
   const only = opt('only', null)?.split(',');
-  const withId = opt('with', null);
+  const withId = opt('with', null)?.split(',');
   const out = opt('out', null);
   const sim = await loadSim();
   const combos = allCombos(sim, only, withId);
@@ -219,12 +247,13 @@ if (!isMainThread) {
       w.on('exit', resolve);
     })),
   );
-  results.sort((a, b) => b.score - a.score);
+  const sortBy = opt('sort', 'score');
+  results.sort((a, b) => b[sortBy] - a[sortBy]);
   const f = (x, d = 1) => x.toFixed(d).padStart(5);
   const pct = (x) => `${Math.round(x * 100)}%`.padStart(4);
-  console.log('\n  SCORE  COMBO                      GAIN  BIG  WORSE CHAOS   AIR  BACK   TOP SWING');
+  console.log(`\n  ${sortBy.toUpperCase().padStart(5)}  COMBO                      GAIN  BIG  WORSE CHAOS FLUNG BUMPS   AIR  BACK SWING`);
   for (const s of results.slice(0, 40)) {
-    console.log(`  ${f(s.score)}  ${`${s.name} (${s.key})`.padEnd(26).slice(0, 26)} ${f(s.gain)} ${pct(s.big)} ${pct(s.worse)} ${f(s.chaos)} ${f(s.air)} ${f(s.back)} ${f(s.top, 2)} ${f(s.swing)}`);
+    console.log(`  ${f(s[sortBy])}  ${`${s.name} (${s.key})`.padEnd(26).slice(0, 26)} ${f(s.gain)} ${pct(s.big)} ${pct(s.worse)} ${f(s.chaos)} ${f(s.flung)} ${f(s.bumps)} ${f(s.air)} ${f(s.back)} ${f(s.swing)}`);
   }
   const breakers = results.filter((s) => s.dist <= 0);
   console.log(`\n  ${breakers.length} combos lose ground on average: ${breakers.map((s) => s.name).join(', ') || 'none'}`);

@@ -27,6 +27,8 @@ export const ROSTER = [
   { name: 'DASH', color: 'grey' },
 ];
 
+const rubberOf = (k) => k.effects.active.find((e) => e.id === 'rubber')?.bounce ?? 0;
+
 export class Race {
   /**
    * @param {object} opts
@@ -256,7 +258,9 @@ export class Race {
         b.y += ny * overlap * (ma / total);
         const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
         if (rv < 0) {
-          const jImp = (-(1 + BUMP.restitution) * rv) / (1 / ma + 1 / mb);
+          // RUBBER (from CANNONBALL) makes karts bounce off harder than they hit.
+          const bounce = Math.max(BUMP.restitution, rubberOf(a), rubberOf(b));
+          const jImp = (-(1 + bounce) * rv) / (1 / ma + 1 / mb);
           a.vx -= (jImp / ma) * nx;
           a.vy -= (jImp / ma) * ny;
           b.vx += (jImp / mb) * nx;

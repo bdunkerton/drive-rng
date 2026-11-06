@@ -207,3 +207,25 @@ export function onceEach(m, key, kart, every = Infinity) {
   seen.set(kart, t);
   return true;
 }
+
+/** Run fn once the kart is back on the ground (straight away if it isn't in the air). */
+export function whenLanded(kart, race, fn) {
+  if (!kart.effects.hasTag('air')) return fn();
+  kart.addEffect(
+    {
+      id: 'land-watch',
+      duration: 3,
+      stacking: 'stack',
+      onTick(k) {
+        if (k.effects.hasTag('air')) return;
+        this.remaining = 0;
+        this.landed = true;
+        fn();
+      },
+      onEnd() {
+        if (!this.landed) fn();
+      },
+    },
+    race,
+  );
+}

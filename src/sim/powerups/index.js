@@ -14,6 +14,12 @@ import './moonwalk.js';
 import './twister.js';
 import './grip.js';
 import './ramp.js';
+import './leapfrog.js';
+import './yank.js';
+import './siphon.js';
+import './catapult.js';
+import './cannonball.js';
+import './orbit.js';
 import './fusion.js';
 
 export { powerups } from './registry.js';

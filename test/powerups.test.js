@@ -13,7 +13,7 @@ import { FUSION } from '../src/config.js';
 import { ItemBox } from '../src/sim/entities.js';
 import { angleDiff } from '../src/core/math.js';
 
-const IDS = ['boost', 'spring', 'hook', 'rocket', 'ghost', 'black-hole', 'bulk', 'bumper', 'magnet', 'blink', 'moonwalk', 'twister', 'grip', 'ramp'];
+const IDS = ['boost', 'spring', 'hook', 'rocket', 'ghost', 'black-hole', 'bulk', 'bumper', 'magnet', 'blink', 'moonwalk', 'twister', 'grip', 'ramp', 'leapfrog', 'yank', 'siphon', 'catapult', 'cannonball', 'orbit'];
 const moveOf = (kart) => kart.effects.active.find((e) => e.id.startsWith('move:'));
 
 // ---- The registry ---------------------------------------------------------------
@@ -39,7 +39,7 @@ test('rolls are weighted and can depend on the race situation', () => {
   assert.deepEqual([...seen].sort(), ['common', 'leader-only']);
 });
 
-test('there are fourteen powerups, each with an icon and HUD-safe names', () => {
+test('there are twenty powerups, each with an icon and HUD-safe names', () => {
   const defs = powerups.list();
   assert.deepEqual(defs.map((d) => d.id), IDS);
   for (const d of defs) {
@@ -398,6 +398,88 @@ test('RAMP: a long jump, leaving a ramp that launches whoever follows', () => {
   place(race, others[0], race.track.project(ramp.x, ramp.y).s - 2, race.track.project(ramp.x, ramp.y).lateral);
   race.step(DT);
   assert.ok(others[0].effects.has('ramped'));
+});
+
+test('LEAPFROG: reel in, vault over the kart ahead, and leave it spinning', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 420);
+  give(me, 'leapfrog');
+  const vaults = [];
+  race.events.on('vault', (e) => vaults.push(e));
+  press(race, input, 'useItem');
+  assert.ok(steps(race, 1.5, () => vaults.length > 0), 'never vaulted');
+  assert.ok(me.effects.hasTag('air'));
+  assert.ok(spinning(others[0]));
+  steps(race, 1);
+  assert.ok(me.progress > others[0].progress, 'did not get past');
+});
+
+test('YANK: the line drags the kart ahead back and hauls you forward', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 450);
+  others[0].kick(150);
+  const theirs = Math.hypot(others[0].vx, others[0].vy);
+  give(me, 'yank');
+  press(race, input, 'useItem');
+  steps(race, 0.4);
+  assert.ok(me.speed > 60, `you only reached ${me.speed}`);
+  assert.ok(Math.hypot(others[0].vx, others[0].vy) < theirs, 'they were not slowed');
+});
+
+test('SIPHON: a kart that hits you gives you its speed', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 280);
+  give(me, 'siphon');
+  press(race, input, 'useItem');
+  others[0].kick(200);
+  const grabs = [];
+  race.events.on('siphon', (e) => grabs.push(e));
+  steps(race, 0.5);
+  assert.ok(grabs.length > 0);
+  assert.ok(me.speed > others[0].speed);
+});
+
+test('CANNONBALL: anything you hit goes flying', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 340);
+  input.throttle = 1;
+  give(me, 'cannonball');
+  press(race, input, 'useItem');
+  const hits = [];
+  race.events.on('cannon:hit', (e) => hits.push(e));
+  steps(race, 1.5, () => hits.length > 0);
+  assert.ok(hits.length > 0, 'never hit');
+  assert.ok(others[0].effects.hasTag('air'));
+});
+
+test('ORBIT: swing round the kart ahead and come out faster', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 330, 8);
+  input.throttle = 1;
+  me.kick(100);
+  give(me, 'orbit');
+  const releases = [];
+  race.events.on('orbit:release', (e) => releases.push(e));
+  press(race, input, 'useItem');
+  assert.ok(steps(race, 2, () => releases.length > 0), 'never let go');
+  assert.ok(me.speed > me.base.maxSpeed, `only ${me.speed}`);
+});
+
+test('CATAPULT: held back, then fired forward', () => {
+  const { race, input, me } = setup({ karts: 1 });
+  place(race, me, 250);
+  input.throttle = 1;
+  give(me, 'catapult');
+  press(race, input, 'useItem');
+  steps(race, 0.5);
+  assert.ok(me.speed < me.base.maxSpeed * 0.6);
+  steps(race, 0.6);
+  assert.ok(me.speed > me.base.maxSpeed, `only ${me.speed}`);
 });
 
 // ---- Rivals ---------------------------------------------------------------------------

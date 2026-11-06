@@ -19,8 +19,8 @@ export const HOOK = {
 };
 
 /** The kart a hook would latch onto right now, or null. */
-export function hookTarget(race, kart) {
-  return race.kartsAhead(kart).find((k) => k.progress - kart.progress <= HOOK.reach) ?? null;
+export function hookTarget(race, kart, reach = HOOK.reach) {
+  return race.kartsAhead(kart).find((k) => k.progress - kart.progress <= reach) ?? null;
 }
 
 export const tether = {

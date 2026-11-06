@@ -1,6 +1,6 @@
 # Drive RNG
 
-A top-down pixel kart racer where the items are the point. One short track (about 20 seconds a lap), three AI rivals, tyre stacks to drive round, fourteen powerups, and two item slots you can fuse into something stranger. Every item helps whoever uses it; anything it does to the other karts is collateral, and that's the risk.
+A top-down pixel kart racer where the items are the point. One short track (about 20 seconds a lap), three AI rivals, tyre stacks to drive round, twenty powerups, and two item slots you can fuse into something stranger. Every item helps whoever uses it; anything it does to the other karts is collateral, and that's the risk.
 
 Plain JavaScript in the browser. No build step and no dependencies.
 
@@ -68,14 +68,20 @@ Every powerup has two halves: a **motion** (how it moves you) and a **field** (w
 | = | **TWISTER** | SPIN: an unstoppable spinning top | WHIRL: flings nearby karts round you |
 | [ | **GRIP** | RAILS: no sliding and sharp steering at any speed | SLICK: leaves oil that takes others' grip away |
 | ] | **RAMP** | LAUNCH: a long, fast jump off a ramp | RAMPS: leaves ramps that launch whoever follows |
+| ; | **LEAPFROG** | VAULT: hook the kart ahead, reel in, jump over it and leave it spinning | STOMP: bounces away whoever's near where you land |
+| ' | **YANK** | TUG: an elastic line drags the kart ahead back and hauls you forward | LASSO: ropes a nearby kart, swings it about and flings it |
+| | **SIPHON** | ABSORB: any kart that hits you gives you its speed | UNDERTOW: drags the karts just ahead back into you |
+| | **CATAPULT** | WIND-UP: a bungee holds you back, then fires you forward | ELASTIC: ties up to three nearby karts to you with bungees |
+| | **CANNONBALL** | ROLL: a heavy iron ball; anything you hit is knocked flying | RUBBER: karts near you bounce off each other harder than they hit |
+| | **ORBIT** | SWING: swing round the kart ahead like a pole and shoot off faster | SATELLITE: nearby karts circle you, then get flung |
 
-The first column is the debug key (see below).
+The first column is the debug key (see below); the debug overlay lists the first 16.
 
 ### Fusing
 
 Press **F** to fuse your front two items into one. Before you press it, the HUD shows what you'd get (`F FUSE: WHITE HOLE`).
 
-- **The rule:** a fusion has the **motion of the first slot and the field of the second**. HOOK then BOOST is a hook that leaves a speed lane; BOOST then HOOK is a dash that drags karts in. Every one of the 182 pairs works, with no table to write. Press **C** to swap the order before you fuse.
+- **The rule:** a fusion has the **motion of the first slot and the field of the second**. HOOK then BOOST is a hook that leaves a speed lane; BOOST then HOOK is a dash that drags karts in. Every one of the 380 pairs works, with no table to write. Press **C** to swap the order before you fuse.
 - **The same item twice** is a **MEGA**: its own motion and field at double strength.
 - **Opposites cancel** and **FIZZLE**: HOOK and BUMPER, BULK and GHOST, BLACK HOLE and SPRING, BLINK and MOONWALK, GRIP and TWISTER. You get the first item alone at half strength and a sad horn. Fizzles are learnable, not bad luck.
 - **One Mega or Fusion in ten comes out WILD**: stronger, with a rainbow frame and a moment of slow motion when you use it. That's the only random part of fusing, and it only ever makes things better.
@@ -125,6 +131,7 @@ npm run sim -- --runs 50          # 50 races: wins, average times, items used, f
 npm run sim -- --karts 8
 npm run lab                       # the combo lab: every item and fusion in 24 race moments each (a few minutes)
 npm run lab -- --with grip --moments 60 --out grip.json
+npm run lab -- --with siphon,orbit --sort vibe   # rank by "vibe": the Pinball feel (contact, karts flung)
 ```
 
 **The combo lab** (`scripts/lab.mjs`) drops each item into real race moments (an all-AI race runs to a chosen second, the kart in 4th gets the item) and compares with the same seeded race without it: places gained, how often it gains 2+ places, how often it leaves you worse, how many karts it touched, airtime, time spent driving backwards. The top of the file explains each number.

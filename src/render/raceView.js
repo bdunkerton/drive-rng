@@ -72,6 +72,22 @@ export class RaceView {
     on('magnet:grab', ({ kart, box }) => {
       for (let i = 0; i <= 8; i++) this.particles.emit({ x: lerp(box.x, kart.x, i / 8), y: lerp(box.y, kart.y, i / 8), life: 0.15 + (i / 8) * 0.25, colour: i % 2 ? PAL.silver : '#e0463a', drag: 6 });
     });
+    on('vault', ({ kart, over }) => this.particles.burst(over.x, over.y, 16, ['#5ec46a', PAL.white, PAL.gold], 55, 0.45));
+    on('stomp', ({ x, y, radius }) => ring(x, y, radius, ['#8a6a3a', PAL.silver, PAL.white], 24, 22, 0.35));
+    on('yank:snap', ({ kart }) => this.particles.burst(kart.x, kart.y, 12, ['#e0463a', PAL.white], 45, 0.35));
+    on('fling', ({ kart }) => this.particles.burst(kart.x, kart.y, 10, ['#f2d14b', PAL.white], 40, 0.35));
+    on('siphon', ({ kart, other }) => {
+      for (let i = 0; i <= 8; i++) this.particles.emit({ x: lerp(other.x, kart.x, i / 8), y: lerp(other.y, kart.y, i / 8), life: 0.15 + (i / 8) * 0.3, colour: i % 2 ? '#5fd8f0' : '#9b52d2', drag: 6 });
+    });
+    on('catapult', ({ kart }) => {
+      this.particles.burst(kart.x, kart.y, 18, [PAL.gold, PAL.boost, PAL.white], 60, 0.45);
+      if (kart === this.target) this.shake = Math.max(this.shake, 3);
+    });
+    on('cannon:hit', ({ kart, other }) => {
+      this.particles.burst(other.x, other.y, 16, ['#4a4a55', PAL.white, PAL.boostHot], 70, 0.4);
+      if (kart === this.target || other === this.target) this.shake = Math.max(this.shake, 4);
+    });
+    on('orbit:release', ({ kart }) => this.particles.burst(kart.x, kart.y, 14, ['#5fd8f0', '#ea843b', PAL.white], 55, 0.4));
     on('hit', ({ kart }) => {
       this.particles.burst(kart.x, kart.y, 14, [PAL.white, PAL.boostHot, PAL.danger], 60, 0.45);
       if (kart === this.target) this.shake = 4;
@@ -129,6 +145,12 @@ export class RaceView {
         for (let i = 0; i < 3; i++) {
           this.particles.emit({ x: k.x - fx * 7, y: k.y - fy * 7, vx: -fx * 60 + (Math.random() - 0.5) * 25, vy: -fy * 60 + (Math.random() - 0.5) * 25, life: 0.25, colour: i === 0 ? PAL.white : Math.random() < 0.5 ? '#e0463a' : PAL.boostHot });
         }
+      }
+      if (k.effects.hasTag('rubber') && Math.random() < 0.3) {
+        this.particles.emit({ x: k.x + (Math.random() - 0.5) * 8, y: k.y + (Math.random() - 0.5) * 8, life: 0.25, colour: '#f07ab8', drag: 6 });
+      }
+      if (k.effects.hasTag('swing') && Math.random() < 0.8) {
+        this.particles.emit({ x: k.x, y: k.y, life: 0.35, colour: Math.random() < 0.5 ? '#5fd8f0' : '#ea843b', drag: 8 });
       }
       if (k.effects.hasTag('twister')) {
         const a = Math.random() * Math.PI * 2;
@@ -233,20 +255,33 @@ export class RaceView {
         g.fillRect(Math.round(cx + Math.cos(a) * (r + wobble)), Math.round(cy + Math.sin(a) * (r + wobble)), 1, 1);
       }
     }
-    const tether = k.effects.active.find((e) => e.target);
-    if (tether) {
-      const t = tether.target;
-      const camX = this.drawCamX;
-      const camY = this.drawCamY;
-      const tx = Math.round(t.x - camX);
-      const ty = Math.round(t.y - camY - t.height);
+    if (k.effects.hasTag('cannon')) {
+      // An iron ring round a cannonball.
+      g.fillStyle = '#4a4a55';
+      for (let i = 0; i < 24; i++) {
+        const a = (i / 24) * Math.PI * 2;
+        g.fillRect(Math.round(cx + Math.cos(a) * 9), Math.round(cy + Math.sin(a) * 9), 1, 1);
+      }
+    }
+    // Lines: hooks and tugs (to a kart), lassos, bungee bands, and a catapult's anchor.
+    const camX = this.drawCamX;
+    const camY = this.drawCamY;
+    const line = (tx, ty, colours, sagBy = 3) => {
       const n = Math.max(2, Math.round(Math.hypot(tx - cx, ty - cy) / 3));
       for (let i = 0; i <= n; i++) {
         const u = i / n;
-        const sag = Math.sin(Math.PI * u) * 3;
-        g.fillStyle = i % 2 ? '#a5743e' : PAL.silver;
+        const sag = Math.sin(Math.PI * u) * sagBy;
+        g.fillStyle = colours[i % colours.length];
         g.fillRect(Math.round(cx + (tx - cx) * u), Math.round(cy + (ty - cy) * u + sag), 1, 1);
       }
+    };
+    const to = (o) => [Math.round(o.x - camX), Math.round(o.y - camY - (o.height ?? 0))];
+    for (const e of k.effects.active) {
+      if (e.target) line(...to(e.target), ['#a5743e', PAL.silver]);
+      if (e.rope) line(...to(e.rope), ['#e0463a', PAL.white], 1);
+      if (e.lasso) line(...to(e.lasso), ['#f2d14b', '#a5743e'], 2);
+      if (e.anchor) line(...to(e.anchor), ['#f2c14b', '#8a6a3a'], 0);
+      if (e.bands) for (const b of e.bands) line(...to(b), ['#f07ab8', '#9b52d2'], 0);
     }
     if (k.effects.has('spinout')) {
       for (let i = 0; i < 3; i++) {
