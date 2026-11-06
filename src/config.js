@@ -55,26 +55,29 @@ export const ITEMS = {
   boxRespawnSeconds: 3.5,
   // How long a slot "spins" after a pickup before the item can be used or fused.
   rouletteSeconds: 0.9,
-  // Item slots every kart starts with, and the most Take Two can grow a hand to.
-  baseSlots: 2,
-  maxSlots: 4,
-  // Most powerups one fused item can hold (SUPER BOOST is 2, BOOST+SHIELD+ROCKET is 3).
-  maxParts: 4,
+  // Item slots every kart has. Fuse turns the front two into one.
+  slots: 2,
+  // In a player's first race, the first boxes always give these (their first fusion is a WHITE HOLE).
+  firstPickups: ['black-hole', 'boost'],
 };
 
-export const HAZARDS = {
-  rocketSpeed: 300,     // a boosted kart tops out around 205
-  rocketLife: 10,
-  rocketHoming: 140,    // sideways pixels per second a rocket can swerve toward its target
-  rocketLockOn: 220,    // starts swerving when this close behind its target
-  bananaLife: 45,
+export const FUSION = {
+  // Strength of each kind of item, as a multiplier ("power") on its Motion and Field.
+  megaPower: 2,         // the same item twice
+  fusionPower: 1.25,    // two different items
+  fizzlePower: 0.5,     // opposites: you get the first item alone, at this strength
+  // Chance a Mega or a Fusion comes out WILD, and how much stronger that makes it.
+  wildChance: 0.1,
+  wildPower: 1.6,
 };
 
 export const HITS = {
-  // Getting hit by a rocket, a banana or a ram.
+  // Getting spun out (by a close BLAST).
   spinSeconds: 0.9,
   spinRate: 13,         // radians per second the kart twirls
   spinGrip: 0.15,       // grip multiplier while spinning (it slides)
+  // Getting popped into the air (by a BOUNCE).
+  popSeconds: 0.55,
 };
 
 export const AI = {
@@ -89,7 +92,8 @@ export const AI = {
   itemDelayMin: 0.4,
   itemDelayMax: 2.2,
   // Chance a rival holding two ready items fuses them instead of using the front one.
-  fuseChance: 0.35,
+  // Rivals never fuse opposites on purpose. Lower = fewer fusions on screen.
+  fuseChance: 0.22,
   // A rival that doesn't want its front item for this long cycles past it (or just uses it).
   holdSeconds: 4,
   stuckSeconds: 1.4,

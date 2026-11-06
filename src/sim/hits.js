@@ -1,9 +1,9 @@
-// Everything that can knock a kart about goes through hitKart, so shields, giants
-// and spin-outs behave the same whether it was a rocket, a banana or a ram.
+// Spin-outs. Only one thing spins karts out now: being right next to a BLAST. Every
+// spin-out goes through hitKart, so giants, rocket riders, bumpers and karts in the air
+// behave the same whatever caused it.
 
 import { HITS } from '../config.js';
 import { toast } from './toast.js';
-import { giveItem, itemName } from './hand.js';
 
 export function spinoutEffect() {
   return {
@@ -24,60 +24,31 @@ export function spinoutEffect() {
   };
 }
 
-/** If the kart has a shield, use up one charge of it and return true. */
-export function consumeShield(kart, race) {
-  const shield = kart.effects.active.find((e) => e.id === 'shield');
-  if (!shield) return false;
-  shield.charges = (shield.charges ?? 1) - 1;
-  if (shield.charges <= 0) kart.effects.remove('shield', kart, race);
-  race.events.emit('shield:pop', { kart, left: Math.max(0, shield.charges) });
-  race.events.emit('sfx', { name: 'block', kart });
-  toast(race, kart, 'BLOCKED!', 'good');
-  return true;
-}
-
-/**
- * Take the victim's front item. A shield blocks it (and pops).
- * @returns {'stolen' | 'blocked' | 'empty'}
- */
-export function stealItem(thief, victim, race) {
-  if (!victim.items.length || thief === victim) return 'empty';
-  if (consumeShield(victim, race)) {
-    toast(race, thief, `${victim.name} BLOCKED IT`, 'bad');
-    return 'blocked';
-  }
-  const item = victim.items.shift();
-  item.roulette = Math.max(item.roulette, 0.3);
-  const name = itemName(item);
-  const result = giveItem(thief, item, { overflow: 'fuse' });
-  race.events.emit('steal', { thief, victim, item, result });
-  race.events.emit('sfx', { name: 'steal', kart: thief });
-  race.events.emit('sfx', { name: 'steal', kart: victim });
-  toast(race, thief, result === 'dropped' ? `GRABBED ${name}, NO ROOM` : `STOLE ${name}!`, 'good');
-  toast(race, victim, `${thief.name} STOLE YOUR ${name}`, 'bad');
-  return 'stolen';
-}
-
 /**
  * Try to spin a kart out.
- * @returns {'hit' | 'blocked' | 'shrugged' | 'already'}
+ * @returns {'hit' | 'blocked' | 'shrugged' | 'missed' | 'already'}
  */
 export function hitKart(target, race, { by = null, kind = 'hit' } = {}) {
   if (target.effects.has('spinout')) return 'already';
-  if (target.effects.hasTag('giant')) {
+  if (target.effects.hasTag('air') || target.effects.hasTag('phase')) return 'missed';
+  if (target.effects.hasTag('giant') || target.effects.hasTag('ride')) {
     race.events.emit('hit:shrug', { kart: target, by, kind });
     return 'shrugged';
   }
-  if (consumeShield(target, race)) {
-    if (by && by !== target) toast(race, by, `${target.name} BLOCKED IT`, 'bad');
+  if (target.effects.hasTag('bumper')) {
+    // A bumper turns the hit into a bounce forward.
+    target.kick(40);
+    race.events.emit('ricochet', { kart: target, by });
+    race.events.emit('sfx', { name: 'ricochet', kart: target });
+    toast(race, target, 'BOING!', 'good');
     return 'blocked';
   }
   target.addEffect(spinoutEffect(), race);
   race.events.emit('hit', { kart: target, by, kind });
   race.events.emit('sfx', { name: 'spin', kart: target });
   if (by && by !== target) {
-    toast(race, target, `HIT BY ${by.name}!`, 'bad');
-    toast(race, by, `HIT ${target.name}!`, 'good');
+    toast(race, target, `BLASTED BY ${by.name}!`, 'bad');
+    toast(race, by, `BLASTED ${target.name}!`, 'good');
   } else {
     toast(race, target, 'SPUN OUT!', 'bad');
   }

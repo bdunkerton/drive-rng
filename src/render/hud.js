@@ -5,8 +5,9 @@ import { VIEW } from '../config.js';
 import { PAL, KART_COLOURS } from './palette.js';
 import { drawText, drawOutlinedText } from './font.js';
 import { paintMinimap } from './trackArt.js';
-import { drawItemPicture, SLOT } from './itemArt.js';
-import { itemName, isReady } from '../sim/hand.js';
+import { drawItemPicture, SLOT, WILD_COLOURS } from './itemArt.js';
+import { itemName, isReady, canFuse } from '../sim/hand.js';
+import { previewFusion } from '../sim/powerups/index.js';
 import { angleDiff } from '../core/math.js';
 
 export function formatTime(t) {
@@ -142,15 +143,31 @@ export class Hud {
       const item = kart.items[i];
       if (item) drawItemPicture(g, item, x, y, this.clock + i * 0.37);
     }
-    if (kart.extraCopies > 0) drawText(g, `X${kart.extraCopies + 1}`, x0 + total + 3, y + 6, { color: PAL.gold });
-
     const front = kart.items[0];
     if (!front) return;
     const ready = isReady(front);
-    if (ready) drawText(g, itemName(front), VIEW.width / 2, y + SLOT + 3, { color: PAL.white, align: 'center' });
+    if (ready) {
+      const name = itemName(front);
+      if (front.wild) {
+        const c = WILD_COLOURS[Math.floor(this.clock * 8) % WILD_COLOURS.length];
+        drawText(g, `WILD ${name}`, VIEW.width / 2, y + SLOT + 3, { color: c, align: 'center' });
+      } else drawText(g, name, VIEW.width / 2, y + SLOT + 3, { color: PAL.white, align: 'center' });
+    }
+    // Show what a fuse would make before you press it (minus the WILD roll).
+    const second = kart.items[1];
     const keys = ['SPACE USE'];
-    if (kart.items.length > 1) keys.push('F FUSE', 'C NEXT');
+    if (canFuse(front, second)) {
+      const preview = previewFusion(front.parts[0], second.parts[0]);
+      keys.push(`F FUSE: ${preview.name}`);
+    }
+    if (kart.items.length > 1) keys.push('C NEXT');
     drawText(g, keys.join('  '), VIEW.width / 2, y + SLOT + 10, { color: PAL.silver, align: 'center' });
+
+    // First race: nag until they try it.
+    if (kart.tutorialFuse && canFuse(front, second)) {
+      const colour = Math.floor(this.clock * 4) % 2 ? PAL.gold : PAL.white;
+      drawOutlinedText(g, 'PRESS F TO FUSE!', VIEW.width / 2, 120, { color: colour, scale: 2, align: 'center' });
+    }
   }
 
   drawToasts(g) {

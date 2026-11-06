@@ -8,9 +8,9 @@ import meadow from '../src/tracks/meadow.js';
 
 export const DT = 1 / 60;
 
-export function setup({ karts = 3, seed = 1 } = {}) {
+export function setup({ karts = 3, seed = 1, firstPickups = null } = {}) {
   const input = { throttle: 0, brake: 0, steer: 0, useItem: false, fuse: false, cycle: false };
-  const race = new Race({ track: meadow, seed, rivals: karts - 1, countdown: 0, humanInput: input });
+  const race = new Race({ track: meadow, seed, rivals: karts - 1, countdown: 0, humanInput: input, firstPickups });
   for (const k of race.karts) if (!k.isPlayer) k.controller = new IdleController();
   race.entities = [];
   const me = race.player;

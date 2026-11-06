@@ -1,7 +1,8 @@
 // Developer overlay, toggled with the backtick key (`) or ?debug=1 in the URL.
-// Shows the centreline, racing line, fence, AI aim points, rocket targets and live
-// numbers, and lists every registered powerup: press its number (1-9, 0 for the 10th)
-// to put it in your hand. Press the same number twice and fuse (F) to make a SUPER.
+// Shows the centreline, racing line, fence, AI aim points, hook lines and live
+// numbers, and lists every registered powerup: press its number (1-8) to put it in
+// your hand. Press two numbers and fuse (F) to try any fusion: the first number is the
+// motion, the second the field. The same number twice makes a MEGA.
 
 import { VIEW } from '../config.js';
 import { PAL } from '../render/palette.js';
@@ -43,8 +44,9 @@ export function drawDebugWorld(g, race, camX, camY) {
   for (const k of race.karts) {
     if (k.controller instanceof AIDriver) line(k.x, k.y, k.controller.debug.tx, k.controller.debug.ty, '#ffe066');
   }
-  for (const e of race.entities) {
-    if (e.kind === 'rocket' && e.target) line(e.x, e.y, e.target.x, e.target.y, '#ff3b6b');
+  for (const k of race.karts) {
+    const tether = k.effects.active.find((e) => e.target);
+    if (tether) line(k.x, k.y, tether.target.x, tether.target.y, '#ff3b6b');
   }
 }
 
@@ -73,9 +75,11 @@ export function drawDebugPanel(g, race, fps) {
   });
 }
 
-/** Put the nth registered powerup (1-10) straight into the player's hand, ready to use. */
+/** Put the nth registered powerup straight into the player's hand, ready to use (bumping the back one if full). */
 export function giveDebugItem(race, n) {
   const def = powerups.list()[n - 1];
-  if (!def || !race.player) return;
-  giveItem(race.player, makeItem([def.id]), { overflow: 'fuse' });
+  const p = race.player;
+  if (!def || !p) return;
+  if (p.items.length >= p.slots) p.items.pop();
+  giveItem(p, makeItem([def.id]));
 }

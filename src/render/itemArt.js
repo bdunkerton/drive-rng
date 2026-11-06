@@ -1,12 +1,12 @@
-// Drawing a held item (one powerup, a SUPER one, or a fused combo) in an 18x18 slot.
+// Drawing a held item (one powerup, a MEGA, a fusion or a fizzle) in an 18x18 slot.
 
 import { icon } from './icons.js';
 import { PAL } from './palette.js';
 import { drawText } from './font.js';
-import { describeItem } from '../sim/hand.js';
-import { powerups } from '../sim/powerups/index.js';
+import { powerups, resolveItem } from '../sim/powerups/index.js';
 
 export const SLOT = 18;
+export const WILD_COLOURS = ['#f2c14b', '#d29bff', '#5fd8f0', '#f07ab8'];
 
 /** Draw an item's picture with its top-left at (x, y). Spinning items flicker through icons. */
 export function drawItemPicture(g, item, x, y, clock = 0) {
@@ -16,19 +16,36 @@ export function drawItemPicture(g, item, x, y, clock = 0) {
     g.drawImage(icon(def.icon), x + 2, y + 2);
     return;
   }
-  const { groups, recipe } = describeItem(item);
-  if (recipe) {
-    // Named combos get a gold glow behind their parts.
+  const r = resolveItem(item);
+  if (r.kind === 'single') {
+    g.drawImage(icon(r.a.icon), x + 2, y + 2);
+    return;
+  }
+  if (r.showcase) {
+    // Named fusions get a gold glow.
     g.fillStyle = 'rgba(242,193,75,0.35)';
     g.fillRect(x + 1, y + 1, SLOT - 2, SLOT - 2);
   }
-  if (groups.length === 1) {
-    g.drawImage(icon(groups[0].def?.icon ?? groups[0].id), x + 2, y + 2);
-    if (groups[0].power > 1) drawText(g, String(groups[0].power), x + SLOT - 4, y + SLOT - 6, { color: PAL.gold, shadow: PAL.black });
-    return;
+  if (r.kind === 'mega') {
+    g.drawImage(icon(r.a.icon), x + 2, y + 2);
+    drawText(g, '2', x + SLOT - 5, y + SLOT - 7, { color: PAL.gold, shadow: PAL.black });
+  } else {
+    // Motion item top-left, field item bottom-right.
+    g.drawImage(icon(r.a.icon), x, y);
+    g.drawImage(icon(r.b.icon), x + 4, y + 4);
   }
-  // Combos: the first two parts, overlapping; a digit for how many parts it holds.
-  g.drawImage(icon(groups[0].def?.icon ?? groups[0].id), x, y);
-  g.drawImage(icon(groups[1].def?.icon ?? groups[1].id), x + 4, y + 4);
-  if (item.parts.length > 2) drawText(g, String(item.parts.length), x + 1, y + SLOT - 6, { color: PAL.gold, shadow: PAL.black });
+  if (r.kind === 'fizzle') {
+    g.fillStyle = 'rgba(40,38,48,0.6)';
+    g.fillRect(x + 1, y + 1, SLOT - 2, SLOT - 2);
+    drawText(g, 'X', x + 7, y + 6, { color: PAL.danger, shadow: PAL.black });
+  }
+  if (item.wild) {
+    // A sparkling rainbow frame.
+    const c = WILD_COLOURS[Math.floor(clock * 10) % WILD_COLOURS.length];
+    g.fillStyle = c;
+    g.fillRect(x + 1, y + 1, SLOT - 2, 1);
+    g.fillRect(x + 1, y + SLOT - 2, SLOT - 2, 1);
+    g.fillRect(x + 1, y + 1, 1, SLOT - 2);
+    g.fillRect(x + SLOT - 2, y + 1, 1, SLOT - 2);
+  }
 }

@@ -1,47 +1,63 @@
 // The powerup registry. Each powerup is one file in this folder that calls
 // `powerups.register({...})`, plus one import line in ./index.js.
 //
+// Every powerup is two halves:
+//
+//   motion   how it moves YOU (a dash, a jump, a hook, a rocket ride...)
+//   field    what it does to the space around you while that happens (a speed lane,
+//            a pull, a blast when it ends...)
+//
+// Used alone, an item does its own motion and its own field. Fusing two items gives
+// the MOTION of the first and the FIELD of the second (see ./fusion.js), so every pair
+// works with no table to write. The rule every item follows: it always helps whoever
+// uses it. Anything it does to other karts is collateral, and that's the risk.
+//
 // A powerup definition:
 //
 //   {
-//     id: 'speed-boost',              // unique, kebab-case
-//     name: 'BOOST',                  // shown in the HUD (pixel font: A-Z, 0-9, a little punctuation)
-//     short: 'BOOST',                 // 6 chars max, used in SUPER BOOST and in combo names
-//     abbr: 'BST',                    // 3 chars, used when a combo name would be too long
-//     description: 'One line.',       // for menus and docs
+//     id: 'boost',                    // unique, kebab-case
+//     name: 'BOOST',                  // HUD text (pixel font: A-Z, 0-9, a little punctuation), 12 max
+//     short: 'BOOST',                 // 6 max: used in fused names like BOOST+HOOK
+//     abbr: 'BST',                    // 3 max: used when a fused name would be too long
+//     description: 'One line.',
 //     icon: 'boost',                  // key into src/render/icons.js
 //     weight: 1,                      // how often it rolls; a number, or (ctx) => number
-//     order: 50,                      // when a fused item runs its parts, lower goes first
-//     aiWants(ctx) {},                // optional: should a rival use it right now? (default yes)
-//     use(ctx) {},                    // what happens when the holder uses it
+//     opposite: 'other-id',           // optional: fusing with this one fizzles (set on both sides)
+//     aiWants(ctx) {},                // optional: is now a good moment for a rival to use it? (default yes)
+//     motion: {
+//       name: 'DASH',
+//       duration(power) {},           // seconds
+//       tags: ['boost'],              // effect tags while it lasts (rendering and rules read them)
+//       modifiers(power) {},          // optional: stat multipliers while it lasts (see effects.js)
+//       height: 0,                    // optional: how high it lifts the kart (drawn only)
+//       start(m) {}, tick(m, dt) {}, end(m) {},   // all optional
+//     },
+//     field: {
+//       name: 'SLIPSTREAM',
+//       start(m) {}, tick(m, dt) {}, release(m) {},  // all optional; release runs when the motion ends
+//     },
 //   }
 //
-// `use`, `aiWants` and a function `weight` receive a context:
-//   ctx.race     the Race
-//   ctx.kart     the kart using (or rolling for) the item
-//   ctx.power    1 normally; 2 for SUPER (two fused together), 3 for ULTRA, 4 for MAX
-//   ctx.item     the held item being used ({ parts: [...ids] })
-//   ctx.rng      the race's seeded Rng — use this, never Math.random, so seeds replay
-//   ctx.events   the race's event bus
-//   ctx.spawn(e) add an entity to the race (see src/sim/entities.js)
-//   ctx.position / ctx.racers   where the kart is running, and out of how many
+// Motion and field hooks receive a "move" object m (see ./kit.js runMove):
+//   m.kart, m.race, m.rng, m.power (motion strength), m.fieldPower (field strength),
+//   m.wild, m.data (scratch space shared by the motion and field), m.effect (the live
+//   effect on the kart), m.stop() (end the motion early).
 //
-// A recipe is a named combo: when a fused item contains all of a recipe's parts, the
-// recipe's `use` runs instead of those parts' own uses (any other parts still run
-// normally). See ./recipes.js.
+// `aiWants` and a function `weight` receive the race context (see Race.context).
 
 export class PowerupRegistry {
   constructor() {
     /** @type {Map<string, any>} */
     this.byId = new Map();
-    /** @type {any[]} */
-    this.recipes = [];
+    /** @type {Map<string, any>} named fusions, keyed "motionId+fieldId" */
+    this.showcases = new Map();
   }
 
   register(def) {
     if (!def || typeof def.id !== 'string' || !def.id) throw new Error('powerup needs an id');
     if (this.byId.has(def.id)) throw new Error(`powerup "${def.id}" is already registered`);
-    if (typeof def.use !== 'function') throw new Error(`powerup "${def.id}" needs a use(ctx) function`);
+    if (!def.motion || !def.field) throw new Error(`powerup "${def.id}" needs a motion and a field`);
+    if (typeof def.motion.duration !== 'function') throw new Error(`powerup "${def.id}" motion needs duration(power)`);
     const name = def.name ?? def.id.toUpperCase();
     const full = {
       name,
@@ -50,33 +66,36 @@ export class PowerupRegistry {
       description: '',
       icon: def.id,
       weight: 1,
-      order: 50,
+      opposite: null,
       ...def,
+      motion: { id: def.id, tags: [], ...def.motion },
+      field: { id: def.id, ...def.field },
     };
     this.byId.set(def.id, full);
     return full;
   }
 
   /**
-   * A named combo.
-   * { id, name, abbr, parts: [ids], description, icon?, use(ctx) }
-   * The recipe's ctx is like a powerup's, plus ctx.parts ({ id, power } for each recipe
-   * part) and ctx.runParts(), which runs the parts' normal uses if the recipe wants them.
+   * A named fusion: the motion of one item with the field of another. It only changes
+   * the name, description and (in the renderer) how it looks; the rule does the work.
+   * { motion: id, field: id, name, description }
    */
-  registerRecipe(recipe) {
-    if (!recipe?.id || !Array.isArray(recipe.parts) || recipe.parts.length < 2) throw new Error('recipe needs an id and two or more parts');
-    if (this.recipes.some((r) => r.id === recipe.id)) throw new Error(`recipe "${recipe.id}" is already registered`);
-    const full = { abbr: recipe.name.slice(0, 3), description: '', ...recipe, parts: [...new Set(recipe.parts)].sort() };
-    this.recipes.push(full);
-    // Bigger recipes are checked first, so a three-part recipe beats a two-part one inside it.
-    this.recipes.sort((a, b) => b.parts.length - a.parts.length);
-    return full;
+  registerShowcase(showcase) {
+    const key = `${showcase.motion}+${showcase.field}`;
+    if (this.showcases.has(key)) throw new Error(`showcase "${key}" is already registered`);
+    this.showcases.set(key, { ...showcase, key });
+    return showcase;
   }
 
-  /** The best recipe whose parts are all in `ids`, or null. */
-  findRecipe(ids) {
-    const have = new Set(ids);
-    return this.recipes.find((r) => r.parts.every((p) => have.has(p))) ?? null;
+  showcase(motionId, fieldId) {
+    return this.showcases.get(`${motionId}+${fieldId}`) ?? null;
+  }
+
+  /** Do these two cancel out when fused? */
+  areOpposites(a, b) {
+    const da = this.get(a);
+    const db = this.get(b);
+    return !!da && !!db && (da.opposite === b || db.opposite === a);
   }
 
   get(id) {
