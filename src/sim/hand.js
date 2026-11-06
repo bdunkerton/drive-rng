@@ -1,99 +1,43 @@
-// The items a kart is holding: its "hand".
+// The items a kart is holding: its "hand". Two slots, front first.
 //
-// Every kart has `kart.items` (front first) and `kart.slots` (how many it can hold,
-// 2 to start, Take Two grows it). Each held item is
+// Each held item is
 //
-//   { parts: ['speed-boost'], roulette: 0.9 }
+//   { parts: ['boost'], roulette: 0.9, wild: false }
 //
-// `parts` is a list of powerup ids. Fusing two items joins their parts, so
-// BOOST + BOOST becomes { parts: ['speed-boost', 'speed-boost'] } (SUPER BOOST) and
-// BOOST + SHIELD becomes { parts: ['speed-boost', 'shield'] } (the RAM recipe).
+// A picked-up item has one part. Fusing the front two joins them, in order:
+// BOOST then HOOK becomes { parts: ['boost', 'hook'] }, which runs BOOST's motion with
+// HOOK's field (see powerups/fusion.js). A fused item can't be fused again.
 // `roulette` counts down after a pickup; the item can't be used or fused until it's 0.
-//
-// Using an item groups its parts by id. Each id runs its powerup's use(ctx) once with
-// ctx.power = how many copies were fused in. If the parts contain a recipe, the recipe
-// runs instead of those parts.
 
-import { ITEMS } from '../config.js';
-import { powerups } from './powerups/registry.js';
+import { FUSION } from '../config.js';
+import { resolveItem } from './powerups/fusion.js';
+import { runMove } from './powerups/kit.js';
 import { toast } from './toast.js';
 
-const LEVELS = ['', '', 'SUPER', 'ULTRA', 'MAX'];
-const NAME_LIMIT = 12;
-
 export function makeItem(parts, roulette = 0) {
-  return { parts: Array.isArray(parts) ? [...parts] : [parts], roulette };
+  return { parts: Array.isArray(parts) ? [...parts] : [parts], roulette, wild: false };
 }
-
-export const copyItem = (item, roulette = item.roulette) => makeItem(item.parts, roulette);
 
 export const isReady = (item) => !!item && item.roulette <= 0;
 
-/** Can a and b be fused into one item? */
+/** Can a and b be fused into one item? Both ready, and neither fused already. */
 export function canFuse(a, b) {
-  return isReady(a) && isReady(b) && a.parts.length + b.parts.length <= ITEMS.maxParts;
+  return isReady(a) && isReady(b) && a.parts.length === 1 && b.parts.length === 1;
 }
 
-/** Parts grouped by id, in the order they run: [{ id, power, def }]. */
-export function groupParts(parts) {
-  const counts = new Map();
-  for (const id of parts) counts.set(id, (counts.get(id) ?? 0) + 1);
-  return [...counts]
-    .map(([id, power]) => ({ id, power, def: powerups.get(id) }))
-    .sort((a, b) => (a.def?.order ?? 50) - (b.def?.order ?? 50) || (a.id < b.id ? -1 : 1));
-}
-
-/** How an item breaks down: its recipe (if any), the parts in it, and the rest. */
-export function describeItem(item) {
-  const groups = groupParts(item.parts);
-  const recipe = groups.length > 1 ? powerups.findRecipe(groups.map((g) => g.id)) : null;
-  const inRecipe = recipe ? groups.filter((g) => recipe.parts.includes(g.id)) : [];
-  const rest = recipe ? groups.filter((g) => !recipe.parts.includes(g.id)) : groups;
-  const recipePower = inRecipe.length ? Math.max(...inRecipe.map((g) => g.power)) : 0;
-  return { groups, recipe, inRecipe, rest, recipePower };
-}
-
-/** The name the HUD shows: BOOST, SUPER BOOST, RAM, ROCKET+GROW, BSTX2+SHD, 4-WAY COMBO... */
+/** The name the HUD shows: BOOST, MEGA HOOK, WHITE HOLE, SPRING+BULK, FIZZLE... */
 export function itemName(item) {
-  const { recipe, rest, recipePower } = describeItem(item);
-  const tokens = [];
-  if (recipe) tokens.push({ name: recipe.name, short: recipe.name, abbr: recipe.abbr, power: recipePower });
-  for (const g of rest) {
-    const def = g.def ?? { name: g.id.toUpperCase(), short: g.id.slice(0, 6).toUpperCase(), abbr: g.id.slice(0, 3).toUpperCase() };
-    tokens.push({ name: def.name, short: def.short, abbr: def.abbr, power: g.power });
-  }
-  if (tokens.length === 1) {
-    const t = tokens[0];
-    if (t.power === 1) return t.name;
-    const levelled = `${LEVELS[t.power] ?? 'MAX'} ${t.short}`;
-    return levelled.length <= NAME_LIMIT ? levelled : `${t.short} X${t.power}`;
-  }
-  const suffix = (t) => (t.power > 1 ? `X${t.power}` : '');
-  for (const form of [(t) => t.short + suffix(t), (t) => t.abbr + suffix(t)]) {
-    const joined = tokens.map(form).join('+');
-    if (joined.length <= NAME_LIMIT) return joined;
-  }
-  return `${item.parts.length}-WAY COMBO`;
+  return resolveItem(item).name;
 }
 
 /**
- * Put an item in a kart's hand.
- * overflow 'drop'  — no room, it's lost.
- * overflow 'fuse'  — no room, it fuses onto the last item instead (if that stays small enough).
- * @returns {'added' | 'fused' | 'dropped'}
+ * Put an item in a kart's hand. With no room it's lost.
+ * @returns {'added' | 'dropped'}
  */
-export function giveItem(kart, item, { overflow = 'drop' } = {}) {
+export function giveItem(kart, item) {
   if (kart.items.length < kart.slots) {
     kart.items.push(item);
     return 'added';
-  }
-  if (overflow === 'fuse') {
-    const last = kart.items[kart.items.length - 1];
-    if (last && last.parts.length + item.parts.length <= ITEMS.maxParts) {
-      last.parts.push(...item.parts);
-      last.roulette = Math.max(last.roulette, item.roulette);
-      return 'fused';
-    }
   }
   return 'dropped';
 }
@@ -110,17 +54,33 @@ export function useFrontItem(kart, race) {
 /** Fuse the front two items into one. */
 export function fuseFront(kart, race) {
   const [a, b] = kart.items;
-  if (!a || !b) return false;
+  if (!a || !b || !isReady(a) || !isReady(b)) return false;
   if (!canFuse(a, b)) {
-    if (isReady(a) && isReady(b)) toast(race, kart, 'TOO BIG TO FUSE', 'bad');
+    toast(race, kart, 'ALREADY FUSED', 'bad');
     return false;
   }
-  const fused = makeItem([...a.parts, ...b.parts]);
+  const fused = makeItem([a.parts[0], b.parts[0]]);
+  const { kind } = resolveItem(fused);
+  if (kind !== 'fizzle' && race.rng.chance(FUSION.wildChance)) fused.wild = true;
   kart.items.splice(0, 2, fused);
-  const name = itemName(fused);
-  race.events.emit('item:fuse', { kart, item: fused, name });
-  race.events.emit('sfx', { name: 'fuse', kart });
-  toast(race, kart, `FUSED: ${name}`, 'gold');
+  kart.tutorialFuse = false;
+  const r = resolveItem(fused);
+  race.events.emit('item:fuse', { kart, item: fused, name: r.name, kind, wild: fused.wild, parts: [...fused.parts], showcase: r.showcase?.key ?? null });
+  if (kind === 'fizzle') {
+    race.events.emit('fizzle', { kart, item: fused });
+    race.events.emit('sfx', { name: 'fizzle', kart });
+    toast(race, kart, 'FIZZLE... THEY CANCEL OUT', 'bad');
+    return true;
+  }
+  if (kind === 'mega') race.events.emit('mega', { kart, item: fused });
+  if (fused.wild) {
+    race.events.emit('wild', { kart, item: fused });
+    race.events.emit('sfx', { name: 'wild', kart });
+    toast(race, kart, `WILD ${r.name}!`, 'gold');
+  } else {
+    race.events.emit('sfx', { name: 'fuse', kart });
+    toast(race, kart, `FUSED: ${r.name}`, 'gold');
+  }
   return true;
 }
 
@@ -133,26 +93,34 @@ export function cycleHand(kart, race) {
   return true;
 }
 
-/** Run an item's effects for a kart (it should already be out of the hand). */
+/** Run an item for a kart (it should already be out of the hand). */
 export function activateItem(item, kart, race) {
-  const { recipe, inRecipe, rest, recipePower } = describeItem(item);
-  const runGroup = (g) => g.def?.use(race.context(kart, { power: g.power, item }));
-  const steps = [];
-  if (recipe) {
-    steps.push({
-      order: Math.min(...inRecipe.map((g) => g.def?.order ?? 50)),
-      run: () => recipe.use(race.context(kart, { power: recipePower, item, parts: inRecipe, runParts: () => inRecipe.forEach(runGroup) })),
-    });
-  }
-  for (const g of rest) steps.push({ order: g.def?.order ?? 50, run: () => runGroup(g) });
-  steps.sort((a, b) => a.order - b.order).forEach((s) => s.run());
-  race.events.emit('item:use', { kart, item, name: itemName(item), parts: [...item.parts], recipe: recipe?.id ?? null });
+  const r = resolveItem(item);
+  if (!r.motionDef) return;
+  runMove(race.context(kart, { power: r.power, item }), {
+    motion: r.motionDef.motion,
+    field: r.fieldDef.field,
+    power: r.power,
+    fieldPower: r.fieldPower,
+    info: { kind: r.kind, wild: r.wild, name: r.name, parts: [...item.parts] },
+  });
+  if (r.kind === 'fizzle') toast(race, kart, 'PFFT.', 'bad');
+  race.events.emit('item:use', {
+    kart,
+    item,
+    name: r.name,
+    parts: [...item.parts],
+    kind: r.kind,
+    wild: r.wild,
+    showcase: r.showcase?.key ?? null,
+    motion: r.motionDef.id,
+    field: r.fieldDef.id,
+  });
 }
 
-/** Would a rival want to use this item right now? True if any part says so. */
+/** Would a rival want to use this item right now? Asks the powerup whose motion it runs. */
 export function aiWantsItem(item, kart, race) {
-  const { recipe, rest, recipePower } = describeItem(item);
-  const ask = (def, power) => (def?.aiWants ? def.aiWants(race.context(kart, { power, item })) : true);
-  if (recipe && ask(recipe, recipePower)) return true;
-  return rest.some((g) => ask(g.def, g.power));
+  const { motionDef } = resolveItem(item);
+  return motionDef?.aiWants ? motionDef.aiWants(race.context(kart, { item })) : true;
 }
+

@@ -1,6 +1,6 @@
 // Playing a race: input -> race -> view + HUD, plus the pause menu and results.
 
-import { VIEW } from '../config.js';
+import { VIEW, ITEMS } from '../config.js';
 import { Race } from '../sim/race.js';
 import { RaceView } from '../render/raceView.js';
 import { Hud, formatTime, ordinal } from '../render/hud.js';
@@ -12,6 +12,25 @@ import { approach } from '../core/math.js';
 import meadow from '../tracks/meadow.js';
 
 const STEER_RATE = 7; // how fast keyboard steering ramps to full lock, per second
+const SLOWMO_SECONDS = 0.7; // a WILD item used by the player plays in slow motion for this long
+const SLOWMO_RATE = 0.35;   // ...at this fraction of normal speed
+const FUSED_KEY = 'drive-rng:has-fused';
+
+// Browser storage can be missing or throw (private windows, sandboxed frames).
+function remembered(key) {
+  try {
+    return window.localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+function remember(key) {
+  try {
+    window.localStorage.setItem(key, '1');
+  } catch {
+    // Nothing to do: the tutorial will just show again next time.
+  }
+}
 const PAUSE_ITEMS = ['RESUME', 'RESTART', 'QUIT TO MENU'];
 
 export class RaceScene {
@@ -32,6 +51,14 @@ export class RaceScene {
       laps: o.laps,
       rivals: o.rivals,
       humanInput: this.humanInput,
+      // Until the player has fused once, their first two boxes set up a WHITE HOLE.
+      firstPickups: o.tutorial || !remembered(FUSED_KEY) ? ITEMS.firstPickups : null,
+    });
+    this.slowmo = 0;
+    this.slowAcc = 0;
+    this.race.events.on('item:fuse', ({ kart }) => kart === this.race.player && remember(FUSED_KEY));
+    this.race.events.on('item:use', ({ kart, wild }) => {
+      if (wild && kart === this.race.player) this.slowmo = SLOWMO_SECONDS;
     });
     this.view = new RaceView(this.race);
     this.hud = new Hud(this.race);
@@ -104,6 +131,13 @@ export class RaceScene {
 
   update(dt) {
     if (this.paused) return;
+    if (this.slowmo > 0) {
+      // Slow motion: only some frames step the race (the race itself always steps at 60 Hz).
+      this.slowmo -= dt;
+      this.slowAcc += SLOWMO_RATE;
+      if (this.slowAcc < 1) return;
+      this.slowAcc -= 1;
+    }
     this.race.step(dt);
     // A hand press (use, fuse, next) lasts until one step has seen it.
     this.humanInput.useItem = false;

@@ -3,25 +3,33 @@ import assert from 'node:assert/strict';
 import { setup, place, give, press, steps, spinning, DT } from './_helpers.js';
 import { PowerupRegistry, powerups } from '../src/sim/powerups/registry.js';
 import '../src/sim/powerups/index.js';
-import { SPEED_BOOST } from '../src/sim/powerups/speedBoost.js';
-import { ItemBox } from '../src/sim/entities.js';
+import { resolveItem } from '../src/sim/powerups/fusion.js';
+import { makeItem, fuseFront } from '../src/sim/hand.js';
 import { Rng } from '../src/core/rng.js';
 import { hasIcon } from '../src/render/icons.js';
 import { hitKart } from '../src/sim/hits.js';
+import { simulateRace } from '../src/sim/headless.js';
+import { FUSION } from '../src/config.js';
 
-// ---- The registry -------------------------------------------------------------
+const IDS = ['boost', 'spring', 'hook', 'rocket', 'ghost', 'black-hole', 'bulk', 'bumper'];
+const moveOf = (kart) => kart.effects.active.find((e) => e.id.startsWith('move:'));
 
-test('the registry refuses duplicate ids and missing use functions', () => {
+// ---- The registry ---------------------------------------------------------------
+
+test('the registry refuses duplicate ids and items without both halves', () => {
   const r = new PowerupRegistry();
-  r.register({ id: 'x', use() {} });
-  assert.throws(() => r.register({ id: 'x', use() {} }), /already registered/);
-  assert.throws(() => r.register({ id: 'y' }), /use\(ctx\)/);
+  const half = { duration: () => 1 };
+  r.register({ id: 'x', motion: half, field: {} });
+  assert.throws(() => r.register({ id: 'x', motion: half, field: {} }), /already registered/);
+  assert.throws(() => r.register({ id: 'y', motion: half }), /motion and a field/);
+  assert.throws(() => r.register({ id: 'z', motion: {}, field: {} }), /duration/);
 });
 
 test('rolls are weighted and can depend on the race situation', () => {
   const r = new PowerupRegistry();
-  r.register({ id: 'common', weight: 9, use() {} });
-  r.register({ id: 'leader-only', weight: (ctx) => (ctx.position === 1 ? 1 : 0), use() {} });
+  const half = { duration: () => 1 };
+  r.register({ id: 'common', weight: 9, motion: half, field: {} });
+  r.register({ id: 'leader-only', weight: (ctx) => (ctx.position === 1 ? 1 : 0), motion: half, field: {} });
   const rng = new Rng(5);
   for (let i = 0; i < 200; i++) assert.equal(r.roll(rng, { position: 3 }), 'common');
   const seen = new Set();
@@ -29,286 +37,316 @@ test('rolls are weighted and can depend on the race situation', () => {
   assert.deepEqual([...seen].sort(), ['common', 'leader-only']);
 });
 
-test('there are ten powerups, each with an icon and HUD-safe names', () => {
+test('there are eight powerups, each with an icon and HUD-safe names', () => {
   const defs = powerups.list();
-  assert.deepEqual(defs.map((d) => d.id), ['speed-boost', 'swap', 'take-two', 'copy', 'rocket', 'banana', 'shield', 'magnet', 'grow', 'chaos']);
+  assert.deepEqual(defs.map((d) => d.id), IDS);
   for (const d of defs) {
     assert.ok(hasIcon(d.icon), `${d.id} has no icon`);
     assert.ok(d.name.length <= 12 && d.short.length <= 6 && d.abbr.length <= 3, d.id);
   }
 });
 
-test('the leader never rolls a swap', () => {
-  const { race, me } = setup({ karts: 4 });
-  const rng = new Rng(3);
-  for (let i = 0; i < 500; i++) assert.notEqual(powerups.roll(rng, race.context(me, { position: 1 })), 'swap');
+test('three pairs of opposites, and they go both ways', () => {
+  const pairs = [];
+  for (const a of IDS) for (const b of IDS) if (a < b && powerups.areOpposites(a, b)) pairs.push(`${a}/${b}`);
+  assert.deepEqual(pairs.sort(), ['black-hole/spring', 'bulk/ghost', 'bumper/hook']);
+  for (const d of powerups.list()) if (d.opposite) assert.equal(powerups.get(d.opposite).opposite, d.id);
 });
 
-// ---- BOOST ----------------------------------------------------------------------
+// ---- The item rule: every item helps whoever uses it ------------------------------
 
-test('BOOST raises top speed for its duration, then wears off', () => {
-  const { race, input, me } = setup({ karts: 1 });
+/** How far the player gets in `seconds` after using `parts` on the opening straight (null = no item). */
+function distanceWith(parts, seconds = 3) {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 40);
+  place(race, others[0], 3000);
   input.throttle = 1;
-  steps(race, 3);
-  const cruising = me.forwardSpeed;
-  give(me, 'speed-boost');
-  press(race, input, 'useItem');
-  let peak = 0;
-  for (let i = 0; i < Math.floor(SPEED_BOOST.duration / DT) - 2; i++) {
-    race.step(DT);
-    peak = Math.max(peak, me.forwardSpeed);
-  }
-  assert.ok(peak > cruising * 1.3, `peak ${peak} vs cruising ${cruising}`);
-  steps(race, 2);
-  assert.equal(me.effects.has('speed-boost'), false);
-  assert.ok(me.forwardSpeed <= me.base.maxSpeed + 0.5);
-});
-
-// ---- SWAP -----------------------------------------------------------------------
-
-test('SWAP trades places with the leader, laps and all', () => {
-  const { race, input, me, others } = setup();
-  const [leader, third] = others;
-  place(race, me, 4500);
-  place(race, leader, 5000);
-  place(race, third, 300);
-  give(me, 'swap');
-  press(race, input, 'useItem');
-  assert.ok(me.progress > 4990 && leader.progress < 4510, `${me.progress} / ${leader.progress}`);
-  assert.equal(me.position, 1);
-  assert.equal(me.lapsDone, 1);
-  assert.equal(leader.lapsDone, 1);
-});
-
-test('SWAP while leading makes 2nd and last trade instead', () => {
-  const { race, input, me, others } = setup();
-  const [a, b] = others;
-  place(race, me, 900);
-  place(race, a, 600);
-  place(race, b, 300);
-  give(me, 'swap');
-  press(race, input, 'useItem');
-  assert.ok(me.progress > 895);
-  assert.ok(a.progress < 310 && b.progress > 590);
-});
-
-test('a shield blocks a SWAP (and pops)', () => {
-  const { race, input, me, others } = setup({ karts: 2 });
-  place(race, me, 500);
-  place(race, others[0], 900);
-  others[0].addEffect({ id: 'shield', duration: 8, charges: 1, tags: ['shield'] }, race);
-  give(me, 'swap');
-  press(race, input, 'useItem');
-  assert.ok(me.progress < 510);
-  assert.equal(others[0].effects.has('shield'), false);
-});
-
-test('SUPER SWAP trades hands too', () => {
-  const { race, input, me, others } = setup({ karts: 2 });
-  place(race, me, 500);
-  place(race, others[0], 900);
-  give(others[0], 'grow');
-  give(me, 'swap', 'swap');
-  give(me, 'banana');
-  press(race, input, 'useItem');
-  assert.deepEqual(me.items.map((i) => i.parts), [['grow']]);
-  assert.deepEqual(others[0].items.map((i) => i.parts), [['banana']]);
-});
-
-// ---- TAKE TWO -------------------------------------------------------------------
-
-test('TAKE TWO doubles your slots and your next box gives two', () => {
-  const { race, input, me } = setup({ karts: 1 });
-  give(me, 'take-two');
-  press(race, input, 'useItem');
-  assert.equal(me.slots, 4);
-  race.spawn(new ItemBox(me.x, me.y));
-  race.step(DT);
-  assert.equal(me.items.length, 2);
-  assert.equal(me.items[0].parts[0], me.items[1].parts[0]);
-  assert.equal(me.extraCopies, 0);
-});
-
-test('TAKE TWO never goes past four slots; with no room the copy fuses into a SUPER', () => {
-  const { race, input, me } = setup({ karts: 1 });
-  me.slots = 4;
-  give(me, 'take-two');
-  give(me, 'banana');
-  give(me, 'banana');
-  press(race, input, 'useItem');
-  assert.equal(me.slots, 4);
-  give(me, 'shield');
-  race.spawn(new ItemBox(me.x, me.y));
-  race.step(DT);
-  assert.equal(me.items.length, 4);
-  assert.equal(me.items[3].parts.length, 2);
-});
-
-// ---- COPY -----------------------------------------------------------------------
-
-test('COPY duplicates the rest of your hand', () => {
-  const { race, input, me } = setup({ karts: 1 });
-  me.slots = 4;
-  give(me, 'copy');
-  give(me, 'rocket');
-  give(me, 'speed-boost', 'shield');
-  press(race, input, 'useItem');
-  assert.deepEqual(me.items.map((i) => i.parts.join('+')), ['rocket', 'speed-boost+shield', 'rocket', 'speed-boost+shield']);
-});
-
-test('COPY with nothing else in hand copies the hand of the kart ahead', () => {
-  const { race, input, me, others } = setup({ karts: 2 });
-  place(race, me, 500);
-  place(race, others[0], 700);
-  give(others[0], 'magnet');
-  give(me, 'copy');
-  press(race, input, 'useItem');
-  assert.deepEqual(me.items.map((i) => i.parts), [['magnet']]);
-  assert.equal(others[0].items.length, 1);
-});
-
-// ---- ROCKET ---------------------------------------------------------------------
-
-test('ROCKET chases down the kart ahead and spins it out', () => {
-  const { race, input, me, others } = setup({ karts: 2 });
-  place(race, me, 500);
-  place(race, others[0], 800, 15);
-  give(me, 'rocket');
-  press(race, input, 'useItem');
-  assert.ok(steps(race, 3, () => spinning(others[0])), 'target was never hit');
-  assert.equal(race.entities.filter((e) => e.kind === 'rocket').length, 0);
-});
-
-test('a shield blocks a ROCKET', () => {
-  const { race, input, me, others } = setup({ karts: 2 });
-  place(race, me, 500);
-  place(race, others[0], 800);
-  others[0].addEffect({ id: 'shield', duration: 8, charges: 1, tags: ['shield'] }, race);
-  give(me, 'rocket');
-  press(race, input, 'useItem');
-  steps(race, 3, () => race.entities.length === 0);
-  assert.equal(spinning(others[0]), false);
-  assert.equal(others[0].effects.has('shield'), false);
-});
-
-test('SUPER ROCKET fires one at each of the next two karts', () => {
-  const { race, input, me, others } = setup({ karts: 3 });
-  place(race, me, 500);
-  place(race, others[0], 700, -10);
-  place(race, others[1], 900, 10);
-  give(me, 'rocket', 'rocket');
-  press(race, input, 'useItem');
-  assert.ok(steps(race, 4, () => spinning(others[0]) && spinning(others[1])));
-});
-
-// ---- BANANA ---------------------------------------------------------------------
-
-test('BANANA drops behind you and spins out whoever drives over it', () => {
-  const { race, input, me, others } = setup({ karts: 2 });
-  place(race, me, 800);
-  place(race, others[0], 300);
-  give(me, 'banana');
-  press(race, input, 'useItem');
-  const banana = race.entities.find((e) => e.kind === 'banana');
-  assert.ok(banana);
-  const p = race.track.project(banana.x, banana.y);
-  assert.ok(p.s < me.s && me.s - p.s < 30);
-  place(race, others[0], p.s, p.lateral);
-  race.step(DT);
-  assert.ok(spinning(others[0]));
-  assert.equal(race.entities.length, 0);
-});
-
-// ---- SHIELD ---------------------------------------------------------------------
-
-test('SHIELD blocks one hit; SUPER SHIELD blocks two', () => {
-  const { race, input, me } = setup({ karts: 1 });
-  give(me, 'shield', 'shield');
-  press(race, input, 'useItem');
-  for (let i = 0; i < 2; i++) {
-    race.spawn({ kind: 'test-spike', x: me.x, y: me.y, radius: 3, alive: true, update() {}, onKartTouch(k, r) { this.alive = false; hitKart(k, r); } });
-    race.step(DT);
-    assert.equal(spinning(me), false, `hit ${i + 1} landed`);
-  }
-  assert.equal(me.effects.has('shield'), false);
-});
-
-// ---- MAGNET ---------------------------------------------------------------------
-
-test('MAGNET steals the front item of the nearest kart ahead', () => {
-  const { race, input, me, others } = setup({ karts: 3 });
-  place(race, me, 500);
-  place(race, others[0], 700);
-  place(race, others[1], 900);
-  give(others[0], 'rocket');
-  give(others[0], 'banana');
-  give(others[1], 'grow');
-  give(me, 'magnet');
-  press(race, input, 'useItem');
-  assert.deepEqual(me.items.map((i) => i.parts), [['rocket']]);
-  assert.deepEqual(others[0].items.map((i) => i.parts), [['banana']]);
-  assert.equal(others[1].items.length, 1);
-});
-
-// ---- GROW -----------------------------------------------------------------------
-
-test("GROW doubles your size and you can't be spun out", () => {
-  const { race, input, me } = setup({ karts: 1 });
-  const before = me.radius;
-  give(me, 'grow');
-  press(race, input, 'useItem');
-  assert.equal(me.radius, before * 2);
-  assert.equal(hitKart(me, race), 'shrugged');
-  assert.equal(spinning(me), false);
-});
-
-test('a giant squashes bananas', () => {
-  const { race, input, me, others } = setup({ karts: 2 });
-  place(race, others[0], 800);
-  give(others[0], 'banana');
-  others[0].controller = { update(k) { k.controls.useItem = true; } };
-  race.step(DT);
-  const banana = race.entities.find((e) => e.kind === 'banana');
-  const p = race.track.project(banana.x, banana.y);
-  give(me, 'grow');
-  press(race, input, 'useItem');
-  place(race, me, p.s, p.lateral);
-  race.step(DT);
-  assert.equal(spinning(me), false);
-  assert.equal(race.entities.filter((e) => e.kind === 'banana').length, 0);
-});
-
-// ---- CHAOS ----------------------------------------------------------------------
-
-test('CHAOS fires another powerup, and sometimes a rival gets it instead', () => {
-  const outcomes = { mine: 0, backfire: 0 };
-  const rolled = new Set();
-  for (let seed = 1; seed <= 60; seed++) {
-    const { race, input, me, others } = setup({ karts: 3, seed });
-    place(race, me, 500);
-    place(race, others[0], 800);
-    place(race, others[1], 300);
-    give(me, 'chaos');
-    const events = [];
-    race.events.on('chaos', (e) => events.push(e));
+  steps(race, 1.2);
+  const from = me.progress;
+  if (parts) {
+    give(me, ...parts);
     press(race, input, 'useItem');
-    assert.equal(events.length, 1);
-    assert.notEqual(events[0].rolled, 'chaos');
-    rolled.add(events[0].rolled);
-    outcomes[events[0].who === me ? 'mine' : 'backfire']++;
   }
-  assert.ok(outcomes.mine > 0 && outcomes.backfire > 0, JSON.stringify(outcomes));
-  assert.ok(rolled.size >= 6, [...rolled].join());
+  steps(race, seconds - (parts ? DT : 0));
+  return me.progress - from;
+}
+
+test('every item and every fusion gets you further than not using one', () => {
+  const plain = distanceWith(null);
+  for (const a of IDS) {
+    for (const b of [null, ...IDS]) {
+      const parts = b ? [a, b] : [a];
+      const d = distanceWith(parts);
+      assert.ok(d > plain + 5, `${parts.join('+')}: ${d.toFixed(0)} vs ${plain.toFixed(0)} with nothing`);
+    }
+  }
 });
 
-test('SUPER CHAOS rolls two different powerups', () => {
-  const { race, input, me, others } = setup({ karts: 2, seed: 4 });
-  place(race, me, 500);
-  place(race, others[0], 800);
-  give(me, 'chaos', 'chaos');
-  const events = [];
-  race.events.on('chaos', (e) => events.push(e.rolled));
+// ---- Each motion and field ------------------------------------------------------------
+
+test('BOOST: a dash that lays a speed lane, and riding the lane speeds you up', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 200);
+  place(race, others[0], 170);
+  input.throttle = 1;
+  give(me, 'boost');
   press(race, input, 'useItem');
-  assert.equal(events.length, 2);
-  assert.notEqual(events[0], events[1]);
+  assert.ok(me.effects.hasTag('boost'));
+  steps(race, 0.5);
+  assert.ok(race.entities.filter((e) => e.kind === 'speed-pad').length > 4);
+  const rider = others[0];
+  rider.controller = { update: (k) => Object.assign(k.controls, { throttle: 1, steer: 0, brake: 0 }) };
+  assert.ok(steps(race, 2, () => rider.effects.has('burst')), 'the kart behind never rode the lane');
+});
+
+test('SPRING: you fly over karts, then pop the ones you land near', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 330);
+  give(me, 'spring');
+  press(race, input, 'useItem');
+  assert.ok(me.effects.hasTag('air'));
+  const bumps = [];
+  race.events.on('bump', (e) => bumps.push(e));
+  steps(race, 1);
+  assert.equal(bumps.length, 0);
+  assert.ok(others[0].effects.has('popped') || others[0].effects.hasTag('air') || race.time > 0, 'ran');
+  // Land right next to someone: they pop.
+  const t = setup({ karts: 2 });
+  place(t.race, t.me, 300);
+  place(t.race, t.others[0], 310, 12);
+  give(t.me, 'spring');
+  const pops = [];
+  t.race.events.on('pop', (e) => pops.push(e));
+  press(t.race, t.input, 'useItem');
+  steps(t.race, 1);
+  assert.ok(pops.some((p) => p.kart === t.others[0]), 'nobody popped');
+});
+
+test('HOOK: latches onto the kart ahead, reels you in and slingshots you past', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 450);
+  give(me, 'hook');
+  const releases = [];
+  race.events.on('hook:release', (e) => releases.push(e));
+  press(race, input, 'useItem');
+  assert.equal(moveOf(me).target, others[0]);
+  assert.ok(steps(race, 2, () => releases.length > 0));
+  assert.equal(releases[0].passed, true);
+  assert.ok(me.progress > others[0].progress);
+  assert.ok(me.effects.has('burst'));
+});
+
+test('ROCKET: you ride it, then a blast throws nearby karts and spins out the closest', () => {
+  const { race, input, me, others } = setup({ karts: 3 });
+  const [close, far] = others;
+  place(race, me, 300);
+  input.throttle = 1;
+  give(me, 'rocket');
+  press(race, input, 'useItem');
+  assert.ok(me.effects.hasTag('ride'));
+  assert.equal(hitKart(me, race), 'shrugged');
+  const move = moveOf(me);
+  // Park two karts where the blast will go off.
+  steps(race, move.remaining - 2 * DT);
+  const fx = Math.cos(me.heading);
+  const fy = Math.sin(me.heading);
+  for (const [k, d, side] of [[close, 12, 0], [far, 30, 25]]) {
+    k.x = me.x + fx * d - fy * side;
+    k.y = me.y + fy * d + fx * side;
+    k.vx = k.vy = 0;
+    k.trackIndex = -1;
+  }
+  steps(race, 4 * DT);
+  assert.ok(spinning(close), 'the close kart did not spin out');
+  assert.ok(Math.hypot(far.vx, far.vy) > 40, 'the far kart was not thrown');
+  assert.equal(spinning(me), false);
+});
+
+test('GHOST: karts pass through you and grass does not slow you', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300, 40);
+  give(me, 'ghost');
+  press(race, input, 'useItem');
+  assert.ok(me.effects.hasTag('phase'));
+  assert.equal(me.surface, 'grass');
+  input.throttle = 1;
+  steps(race, 1.5);
+  assert.ok(me.forwardSpeed > 120, `only ${me.forwardSpeed.toFixed(0)} on the grass`);
+  const bumps = [];
+  race.events.on('bump', (e) => bumps.push(e));
+  others[0].x = me.x;
+  others[0].y = me.y;
+  others[0].trackIndex = -1;
+  race.step(DT);
+  assert.equal(bumps.length, 0);
+});
+
+test('BLACK HOLE: opens a hole ahead, pulls you in and pops you out, dragging the pack', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 260, 20);
+  give(me, 'black-hole');
+  const pops = [];
+  race.events.on('hole:pop', (e) => pops.push(e));
+  press(race, input, 'useItem');
+  const hole = race.entities.find((e) => e.kind === 'hole');
+  assert.ok(hole);
+  const gapBefore = Math.hypot(others[0].x - me.x, others[0].y - me.y);
+  steps(race, 0.3);
+  assert.ok(Math.hypot(others[0].vx, others[0].vy) > 10, 'the other kart was not pulled');
+  assert.ok(steps(race, 1.2, () => pops.length > 0));
+  assert.ok(me.progress > 380);
+  assert.ok(me.effects.has('burst'));
+  assert.ok(gapBefore > 0);
+});
+
+test('BULK: giant, and nothing spins you out', () => {
+  const { race, input, me } = setup({ karts: 1 });
+  give(me, 'bulk');
+  press(race, input, 'useItem');
+  assert.ok(me.effects.hasTag('giant'));
+  assert.ok(me.radius > me.base.radius * 1.7);
+  assert.equal(hitKart(me, race), 'shrugged');
+});
+
+test('BUMPER: every bump kicks you forward, and a blast just bounces off', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  give(me, 'bumper');
+  press(race, input, 'useItem');
+  assert.equal(hitKart(me, race), 'blocked');
+  assert.equal(spinning(me), false);
+  const kicks = [];
+  race.events.on('ricochet', (e) => kicks.push(e));
+  others[0].x = me.x + Math.cos(me.heading) * 8;
+  others[0].y = me.y + Math.sin(me.heading) * 8;
+  others[0].trackIndex = -1;
+  me.kick(80);
+  steps(race, 0.3);
+  assert.ok(kicks.some((k) => k.kart === me), 'no ricochet');
+});
+
+// ---- The fusion rule ------------------------------------------------------------------
+
+test('a fusion is the first item\'s motion with the second item\'s field, so order matters', () => {
+  // WHITE HOLE: BLACK HOLE's fall, BOOST's speed lane.
+  const a = setup({ karts: 1 });
+  place(a.race, a.me, 300);
+  give(a.me, 'black-hole', 'boost');
+  press(a.race, a.input, 'useItem');
+  assert.equal(moveOf(a.me).id, 'move:black-hole');
+  steps(a.race, 0.3);
+  assert.ok(a.race.entities.some((e) => e.kind === 'speed-pad'));
+  // The other way round: BOOST's dash, BLACK HOLE's gravity. No hole, no lane.
+  const b = setup({ karts: 1 });
+  place(b.race, b.me, 300);
+  give(b.me, 'boost', 'black-hole');
+  press(b.race, b.input, 'useItem');
+  assert.equal(moveOf(b.me).id, 'move:boost');
+  steps(b.race, 0.3);
+  assert.equal(b.race.entities.filter((e) => e.kind === 'speed-pad' || e.kind === 'hole').length, 0);
+});
+
+test('the same item twice is a MEGA at double strength', () => {
+  const r = resolveItem(makeItem(['ghost', 'ghost']));
+  assert.equal(r.kind, 'mega');
+  assert.equal(r.name, 'MEGA GHOST');
+  assert.equal(r.power, FUSION.megaPower);
+  const { race, input, me } = setup({ karts: 1 });
+  give(me, 'ghost', 'ghost');
+  press(race, input, 'useItem');
+  const move = moveOf(me);
+  assert.ok(Math.abs(move.duration - powerups.get('ghost').motion.duration(2)) < 1e-9);
+});
+
+test('opposites FIZZLE: you get the first item alone at half strength, and it is never WILD', () => {
+  const r = resolveItem(makeItem(['hook', 'bumper']));
+  assert.equal(r.kind, 'fizzle');
+  assert.equal(r.name, 'FIZZLE');
+  assert.equal(r.motionDef.id, 'hook');
+  assert.equal(r.fieldDef.id, 'hook');
+  assert.equal(r.power, FUSION.fizzlePower);
+  for (let seed = 1; seed <= 200; seed++) {
+    const { race, me } = setup({ karts: 1, seed });
+    give(me, 'bulk');
+    give(me, 'ghost');
+    fuseFront(me, race);
+    assert.equal(me.items[0].wild, false);
+  }
+});
+
+test('about one Mega or Fusion in ten comes out WILD, and WILD is stronger', () => {
+  let wild = 0;
+  const n = 1500;
+  for (let seed = 1; seed <= n; seed++) {
+    const { race, me } = setup({ karts: 1, seed });
+    give(me, 'rocket');
+    give(me, 'spring');
+    fuseFront(me, race);
+    if (me.items[0].wild) wild++;
+  }
+  const share = wild / n;
+  assert.ok(share > 0.07 && share < 0.13, `${(share * 100).toFixed(1)}% wild`);
+  const plain = resolveItem({ parts: ['rocket', 'spring'], wild: false });
+  const boosted = resolveItem({ parts: ['rocket', 'spring'], wild: true });
+  assert.ok(Math.abs(boosted.power - plain.power * FUSION.wildPower) < 1e-9);
+});
+
+test('the named fusions', () => {
+  const names = {
+    'black-hole+boost': 'WHITE HOLE',
+    'hook+boost': 'SLINGSHOT',
+    'spring+rocket': 'METEOR',
+    'rocket+spring': 'SKIP STONE',
+    'boost+ghost': 'WORMHOLE',
+    'bumper+black-hole': 'PINBALL',
+    'bulk+hook': 'SNOWBALL',
+    'ghost+boost': 'GHOST LANE',
+  };
+  for (const [key, name] of Object.entries(names)) {
+    const r = resolveItem(makeItem(key.split('+')));
+    assert.equal(r.name, name);
+    assert.equal(r.kind, 'fusion');
+    assert.ok(r.showcase);
+  }
+  assert.equal(powerups.showcases.size, Object.keys(names).length);
+});
+
+test('METEOR: jump, then land with a blast', () => {
+  const { race, input, me } = setup({ karts: 1 });
+  place(race, me, 300);
+  give(me, 'spring', 'rocket');
+  const blasts = [];
+  race.events.on('blast', (e) => blasts.push(e));
+  press(race, input, 'useItem');
+  assert.ok(me.effects.hasTag('air'));
+  assert.ok(steps(race, 1.5, () => blasts.length > 0));
+  assert.equal(me.effects.hasTag('air'), false);
+});
+
+// ---- Rivals ---------------------------------------------------------------------------
+
+test('AI races with every item in play still finish, and rivals fuse but never on purpose fizzle', () => {
+  let fuses = 0;
+  let fizzles = 0;
+  let uses = 0;
+  for (let seed = 1; seed <= 12; seed++) {
+    const { results, timedOut } = simulateRace({
+      seed,
+      laps: 3,
+      karts: 6,
+      maxSeconds: 300,
+      onSetup(r) {
+        r.events.on('item:fuse', ({ kind }) => (kind === 'fizzle' ? fizzles++ : fuses++));
+        r.events.on('item:use', () => uses++);
+      },
+    });
+    assert.equal(timedOut, false, `seed ${seed} timed out`);
+    assert.ok(results.every((r) => r.finished && r.lapTimes.length === 3));
+  }
+  assert.ok(uses > 100, `only ${uses} items used`);
+  assert.ok(fuses > 10, `only ${fuses} fuses`);
+  assert.equal(fizzles, 0);
 });

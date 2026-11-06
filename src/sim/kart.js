@@ -29,9 +29,10 @@ export class Kart {
     this.effects = new EffectList();
 
     // Items: see src/sim/hand.js
-    this.items = [];                // held items, front first: { parts: [ids], roulette }
-    this.slots = ITEMS.baseSlots;   // how many it can hold
-    this.extraCopies = 0;           // Take Two: the next box pickup comes with this many extra copies
+    this.items = [];                // held items, front first: { parts: [ids], roulette, wild }
+    this.slots = ITEMS.slots;       // how many it can hold
+    this.scriptedPickups = null;    // first race only: the boxes give these, in order
+    this.tutorialFuse = false;      // first race only: the HUD nags "PRESS F TO FUSE"
 
     // Track position (filled in by the race)
     this.s = 0;
@@ -67,14 +68,25 @@ export class Kart {
     return Math.hypot(this.vx, this.vy);
   }
 
-  /** Collision radius. Effects can scale it (GROW doubles it). */
+  /** Collision radius. Effects can scale it (BULK nearly doubles it). */
   get radius() {
-    return this.base.radius * this.effects.multiplier('scale');
+    return this.base.radius * this.scale;
   }
 
-  /** Drawing scale: 1 normally, 2 while giant. */
+  /** Drawing scale: 1 normally, about 2 while giant. */
   get scale() {
-    return this.effects.multiplier('scale');
+    return Math.min(2.5, this.effects.multiplier('scale'));
+  }
+
+  /** How high off the ground the kart is (drawn only): the highest airborne effect, in pixels. */
+  get height() {
+    let h = 0;
+    for (const e of this.effects.active) {
+      if (!e.height || !e.tags.includes('air')) continue;
+      const t = Math.min(1, e.age / Math.max(0.01, e.duration));
+      h = Math.max(h, Math.sin(Math.PI * t) * e.height);
+    }
+    return h;
   }
 
   /** Can the front item be used right now? */

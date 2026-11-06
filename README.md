@@ -1,6 +1,6 @@
 # Drive RNG
 
-A top-down pixel kart racer where the items are the point. One track, three AI rivals, ten powerups, and a hand of item slots where you can fuse powerups together into combos, copy them, double them and steal them.
+A top-down pixel kart racer where the items are the point. One track, three AI rivals, eight powerups, and two item slots you can fuse into something stranger. Every item helps whoever uses it; anything it does to the other karts is collateral, and that's the risk.
 
 Plain JavaScript in the browser. No build step and no dependencies.
 
@@ -29,7 +29,7 @@ No Node? `python -m http.server 8080` in this folder works too (tests and the si
 | Left, Right / A, D | Steer |
 | Space (or E, X) | Use your front item |
 | F (or Q) | Fuse your front two items into one |
-| C (or R) | Move the front item to the back |
+| C (or R) | Move the front item to the back (changes the fusion order) |
 | P / Esc | Pause |
 | M | Mute |
 | ` (backtick) | Debug overlay |
@@ -38,43 +38,49 @@ Drive through a **?** box to get an item. It spins for a moment, then settles in
 
 ## Powerups
 
-You start with **2 item slots** (TAKE TWO can grow that to 4). A full hand smashes boxes without picking anything up.
+You have **2 item slots**. A full hand smashes boxes without picking anything up.
 
-| # | Powerup | Does |
-| --- | --- | --- |
-| 1 | **BOOST** | A burst of speed for 1.5 seconds. |
-| 2 | **SWAP** | Trade places with whoever is in 1st, laps and all. In 1st already? The 2nd-place and last-place karts trade instead. Never rolls for the leader. |
-| 3 | **TAKE TWO** | Doubles your item slots (2 → 4) and your next box gives you two of whatever it rolls. |
-| 4 | **COPY** | Duplicates every other item in your hand. Empty hand? It copies the hand of the kart just ahead. |
-| 5 | **ROCKET** | Follows the road, chases down the kart ahead and spins it out. |
-| 6 | **BANANA** | Drops a peel behind you. Anyone who drives over it spins out — you too, if you circle back. |
-| 7 | **SHIELD** | A bubble for 8 seconds that blocks one hit, swap or steal. |
-| 8 | **MAGNET** | Steals the front item of the nearest kart ahead that has one. |
-| 9 | **GROW** | Giant for 5 seconds: twice the size, heavy, a bit faster, can't be spun out, squashes bananas. |
-| 0 | **CHAOS** | Fires a random other powerup. A quarter of the time it backfires and a random rival gets it instead. |
+Every powerup has two halves: a **motion** (how it moves you) and a **field** (what it does to the space around you while that happens). Used on its own, an item does both of its own halves.
+
+| # | Powerup | Motion | Field |
+| --- | --- | --- | --- |
+| 1 | **BOOST** | DASH: a straight burst of speed | SLIPSTREAM: a speed lane behind you anyone can ride, then a burst of speed for everyone close when it ends |
+| 2 | **SPRING** | LEAP: a big hop; you fly faster than you drive and nothing can touch you | BOUNCE: pops into the air anyone you pass over or land near |
+| 3 | **HOOK** | TETHER: latch onto the kart ahead, get reeled in, slingshot past | PULL: drags nearby karts in toward you |
+| 4 | **ROCKET** | RIDE: very fast, steers wide, nothing knocks you about | BLAST: when it ends, throws nearby karts aside and spins out the closest |
+| 5 | **GHOST** | PHASE: see-through; karts pass through you and grass doesn't slow you | VANISH: karts near you phase out too |
+| 6 | **BLACK HOLE** | FALL: a hole opens ahead, pulls you in and pops you out fast | GRAVITY: drags nearby karts in toward you |
+| 7 | **BULK** | CHARGE: huge and heavy; nothing spins you out or pops you | SHOVE: anyone who touches you bounces off hard |
+| 8 | **BUMPER** | RICOCHET: a springy bubble; every bump kicks you forward | REPEL: pushes nearby karts away |
 
 The numbers are the debug keys (see below).
 
-### Fusing and combos
+### Fusing
 
-Press **F** to fuse your front two items into one. Everything fuses with everything (up to 4 powerups in one item):
+Press **F** to fuse your front two items into one. Before you press it, the HUD shows what you'd get (`F FUSE: WHITE HOLE`).
 
-- **Two of the same** make a stronger one: SUPER (×2), ULTRA (×3), MAX (×4). SUPER BOOST lasts longer and goes faster, SUPER ROCKET fires one at each of the next two karts, SUPER BANANA drops a row, SUPER SHIELD blocks two hits, SUPER MAGNET robs two karts, SUPER SWAP trades hands too, SUPER CHAOS rolls two different powerups, SUPER TAKE TWO makes your next box give three, SUPER COPY copies everything twice.
-- **Two different ones** do both at once: BOOST+ROCKET boosts and fires. Order is sensible: TAKE TWO always goes first (so you have room), COPY always goes last (so it copies what's left).
-- **Recipes** are named combos that do something neither part does alone:
+- **The rule:** a fusion has the **motion of the first slot and the field of the second**. HOOK then BOOST is a hook that leaves a speed lane; BOOST then HOOK is a dash that drags karts in. Every one of the 56 pairs works, with no table to write. Press **C** to swap the order before you fuse.
+- **The same item twice** is a **MEGA**: its own motion and field at double strength.
+- **Opposites cancel** and **FIZZLE**: HOOK and BUMPER, BULK and GHOST, BLACK HOLE and SPRING. You get the first item alone at half strength and a sad horn. Fizzles are learnable, not bad luck.
+- **One Mega or Fusion in ten comes out WILD**: stronger, with a rainbow frame and a moment of slow motion when you use it. That's the only random part of fusing, and it only ever makes things better.
+- A fused item can't be fused again.
 
-| Recipe | Fuse | Does |
+Some fusions have names (the rule is still what they do):
+
+| Fuse | Name | What happens |
 | --- | --- | --- |
-| **RAM** | BOOST + SHIELD | A shielded boost. Anyone you bump while it lasts spins out. |
-| **STAMPEDE** | BOOST + GROW | A boosting giant that spins out whoever it touches. |
-| **HEIST** | ROCKET + MAGNET | A rocket that also steals the victim's front item. |
-| **DECOY** | SWAP + BANANA | Swap with the leader and leave bananas right in front of them. |
+| BLACK HOLE then BOOST | **WHITE HOLE** | Fall into the hole, then burst out in a speed field that flings everyone nearby forward |
+| HOOK then BOOST | **SLINGSHOT** | Latch onto the kart ahead and shoot past it down a speed lane |
+| SPRING then ROCKET | **METEOR** | A big jump, then you slam down with a blast |
+| ROCKET then SPRING | **SKIP STONE** | A rocket run that pops every kart it passes |
+| BOOST then GHOST | **WORMHOLE** | A dash where everything in your way ghosts out of it |
+| BUMPER then BLACK HOLE | **PINBALL** | Karts get dragged into you and bounce off; every bounce kicks you forward |
+| BULK then HOOK | **SNOWBALL** | You're huge and dragging karts in, then shoving them off |
+| GHOST then BOOST | **GHOST LANE** | Phase forward and leave a speed lane others can ride |
 
-A recipe plus anything else still works (RAM+ROCKET is a ram and a rocket), and recipes level up too (SUPER DECOY).
+In your first race, the first two boxes always give BLACK HOLE then BOOST, and the game asks you to press F: your first fusion is a WHITE HOLE. After you've fused once, boxes are random (the game remembers in your browser).
 
-Some things that play together: COPY a fused combo to get two of it; COPY with a full hand fuses the copies onto your last item and powers it up; TAKE TWO then COPY fills all four slots; a MAGNET can steal someone's fused combo; a SHIELD stops a SWAP, a steal and a HEIST; CHAOS can roll any of it, for anyone.
-
-The rivals play the same game: they pick up, fuse, cycle and use items, and each powerup tells them when it's worth using (a rocket when someone's in range, a magnet when someone has something to steal).
+The rivals play the same game: they pick up, fuse, cycle and use items, and each powerup tells them when it's worth using. They never fuse opposites on purpose.
 
 ### URL options
 
@@ -87,10 +93,11 @@ Add these to the address, e.g. `http://localhost:8080/?quick=1&laps=1&seed=banan
 | `rivals=N` | AI rivals, 0–7 |
 | `seed=anything` | Fixed seed: rivals and item rolls repeat exactly (as long as you drive the same) |
 | `debug=1` | Start with the debug overlay on |
+| `tutorial=1` | First-race item boxes (BLACK HOLE, then BOOST) even if you've fused before |
 
 ### Debug overlay
 
-Press backtick. You'll see the track centreline (white dots), the racing line the rivals follow (cyan), the fence (red), a yellow line from each rival to the point it's aiming at, and live numbers for your kart. It also lists every powerup: press its number (1–9, and 0 for the tenth) to put it straight into your hand, ready to use. Press the same number twice and then F to make a SUPER. Your hand is listed in the panel too, and a red line shows where each rocket is heading.
+Press backtick. You'll see the track centreline (white dots), the racing line the rivals follow (cyan), the fence (red), a yellow line from each rival to the point it's aiming at, a red line for each hook, and live numbers for your kart. It also lists every powerup: press its number (1–8) to put it straight into your hand, ready to use. Press two numbers then F to try any fusion: the first number is the motion, the second the field.
 
 ## Check it without playing
 
@@ -98,7 +105,7 @@ Press backtick. You'll see the track centreline (white dots), the racing line th
 npm test                          # unit tests, a few seconds
 npm run sim                       # one AI-only race, seed 1, printed as a table
 npm run sim -- --seed 42 --laps 1
-npm run sim -- --runs 50          # 50 races: wins, average times, items used, fuses, hits, swaps, steals
+npm run sim -- --runs 50          # 50 races: wins, average times, items used, fusions, fizzles, wilds, blasts, pops
 npm run sim -- --karts 8
 ```
 
@@ -116,15 +123,16 @@ src/
     race.js            the race: countdown, step order, laps, positions, finish, results
     kart.js            kart state and driving physics
     track.js           track geometry: centreline, projection, surfaces, start grid
-    effects.js         timed effects on karts (what most powerups add)
-    hand.js            the items a kart holds: slots, fusing, cycling, using, combo names
-    hits.js            spin-outs, shields and stealing, shared by everything that hurts
+    effects.js         timed effects on karts (what every powerup adds)
+    hand.js            the items a kart holds: slots, fusing, cycling, using
+    hits.js            spin-outs (only a close BLAST causes one)
     entities.js        things on the track: item boxes
-    hazards.js         rockets and bananas
+    hazards.js         things items leave behind: speed-lane pads, black-hole marks
     toast.js           short messages for one driver ("HIT BY BOLT!")
     controllers.js     human controller (reads an input object) and an idle one
     headless.js        run a whole race without a screen
-    powerups/          registry.js, index.js, one file per powerup, recipes.js (named combos)
+    powerups/          registry.js, index.js, kit.js (shared pushes, pulls, pops, blasts and
+                       runMove), fusion.js (the fusion rule and the named fusions), one file per powerup
   ai/driver.js         the rivals' driving
   tracks/meadow.js     the Meadow Loop track definition
   render/              everything you see: track art, kart sprites, HUD, font, icons, particles
@@ -157,53 +165,63 @@ The split that matters: **`src/sim` and `src/ai` never touch the browser.** That
 The race emits events on `race.events`. Rendering, sound and the HUD listen; powerups can emit their own.
 
 - Race: `countdown`, `go`, `lap`, `final-lap`, `finish`, `race:end`
-- Hand: `item:box`, `item:pickup`, `item:use` (`{ kart, item, name, parts, recipe }`), `item:fuse`, `item:cycle`
-- Powerups: `swap`, `copy`, `steal`, `magnet`, `chaos`, `rocket:fire`, `rocket:hit`, `rocket:fizzle`, `banana:drop`, `banana:squash`
-- Hits: `hit` (a spin-out landed), `hit:shrug` (a giant ignored it), `shield:pop`
+- Hand: `item:box`, `item:pickup`, `item:use` (`{ kart, item, name, parts, kind, wild, showcase, motion, field }`), `item:fuse` (`{ kart, item, name, kind, wild, parts, showcase }`), `item:cycle`, `mega`, `fizzle`, `wild`
+- Moves: `move:end`, `slipstream`, `pad:ride`, `bounce`, `pop`, `land`, `hook:latch`, `hook:release`, `blast`, `vanish`, `hole:pop`, `shove`, `ricochet`
+- Hits: `hit` (a spin-out landed), `hit:shrug` (a giant or rocket rider ignored it)
 - Other: `effect:start`, `effect:end`, `entity:spawn`, `wall`, `bump`
 - `sfx` (`{ name, kart }` plays a sound from `audio/sound.js`), `toast` (`{ kart, text, colour }` shows a message if that kart is the player)
 
+These are what to hook analytics and clip detection onto: a `finish` shortly after an `item:use` with `wild` or a `showcase`, for example.
+
 ## Adding a powerup
 
-1. Create `src/sim/powerups/<name>.js` and register it:
+1. Create `src/sim/powerups/<name>.js` with a motion and a field, and register it:
 
    ```js
    import { powerups } from './registry.js';
-   import { toast } from '../toast.js';
+   import { floorIt, kartsNear, pushAway } from './kit.js';
 
    powerups.register({
-     id: 'super-grip',
-     name: 'GRIP',                 // HUD text: A–Z, 0–9, basic punctuation, 12 characters max
-     short: 'GRIP',                // 6 max: used in "SUPER GRIP" and in combo names
-     abbr: 'GRP',                  // 3 letters: used when a combo name would be too long
-     description: 'Corners like it is on rails for 4 seconds.',
-     icon: 'grip',                 // key in src/render/icons.js
+     id: 'tornado',
+     name: 'TORNADO',              // HUD text: A–Z, 0–9, basic punctuation, 12 characters max
+     short: 'TWISTR',              // 6 max: used in fused names like TWISTR+HOOK
+     abbr: 'TOR',                  // 3 max: used when a fused name would be too long
+     description: 'Spin forward, flinging everyone near you outward.',
+     icon: 'tornado',              // key in src/render/icons.js
      weight: 1,                    // or (ctx) => number, e.g. more likely when behind
-     order: 50,                    // inside a fused item, lower runs first
-     aiWants: ({ race, kart }) => race.track.bendBetween(kart.s, kart.s + 150) > 1, // optional
-     use({ kart, race, power }) {  // power: 1 normally, 2 for SUPER, 3 ULTRA, 4 MAX
-       kart.addEffect({ id: 'super-grip', duration: 4 * power, modifiers: { grip: 3, turnRate: 1.3 }, tags: ['grip'] }, race);
-       race.events.emit('sfx', { name: 'boost', kart });
-       toast(race, kart, 'GRIP!', 'gold');
+     opposite: null,               // an id here (and on the other one) makes the pair fizzle
+     aiWants: ({ race, kart }) => race.track.bendBetween(kart.s, kart.s + 150) < 0.5, // optional
+     motion: {
+       name: 'SPIN',
+       tags: ['boost'],
+       duration: (power) => 1.2 * power,
+       modifiers: (power) => ({ maxSpeed: 1.3 + 0.1 * power }),
+       tick(m) { floorIt(m.kart); m.kart.heading += 0.2; },
+     },
+     field: {
+       name: 'FLING',
+       tick(m, dt) {
+         for (const { kart } of kartsNear(m.race, m.kart.x, m.kart.y, 40 * Math.sqrt(m.fieldPower), m.kart)) {
+           pushAway(kart, m.kart.x, m.kart.y, 200 * m.fieldPower * dt, m.race);
+         }
+       },
      },
    });
    ```
 
 2. Add `import './<name>.js';` to `src/sim/powerups/index.js`.
 3. Draw a 12×12 icon in `src/render/icons.js` (a missing icon shows as `?`, so it still works).
-4. Optional: a sound in `audio/sound.js`, particles in `render/raceView.js`.
-5. If it puts something on the track, make an entity (see the comment at the top of `sim/entities.js`; `sim/hazards.js` has the rocket and banana as examples) and add how it looks to `render/entityArt.js`. Unknown entity kinds draw as a magenta square so nothing is invisible by accident.
-6. If it knocks karts about, go through `hitKart` in `sim/hits.js` so shields and giants work. To take items, use `stealItem`. To give items, use `giveItem` from `sim/hand.js`.
-7. Use `ctx.rng`, never `Math.random`, for anything random, so seeds replay.
+4. Optional: a sound in `audio/sound.js`, particles in `render/raceView.js`, a name for a fusion in `powerups/fusion.js` (`registerShowcase`).
+5. If it puts something on the track, make an entity (see the comment at the top of `sim/entities.js`; `sim/hazards.js` has examples) and add how it looks to `render/entityArt.js`.
+6. **It must help whoever uses it.** The test `every item and every fusion gets you further than not using one` checks that for every single item and every pair.
+7. Use `m.rng` (or `ctx.rng`), never `Math.random`, for anything random, so seeds replay.
 8. Try it: `?debug=1`, press its number to get it, use it. Then `npm run sim -- --runs 50` to see it in AI races.
 
-It fuses with everything automatically. Use `power` so SUPER/ULTRA versions mean something.
+It fuses with everything automatically: its motion with every other field, and every other motion with its field. Use `m.power` (motion) and `m.fieldPower` (field) so MEGA and WILD versions mean something.
 
-**Adding a recipe** (a named combo): in `powerups/recipes.js`, `powerups.registerRecipe({ id, name, abbr, parts: ['a', 'b'], description, use(ctx) })`. `ctx.parts` lists the recipe's parts with their power, and `ctx.runParts()` runs the parts' normal effects if you want them as well as your extra.
+**What a motion and a field receive:** a move `m` with `m.kart`, `m.race`, `m.rng`, `m.power`, `m.fieldPower`, `m.wild`, `m.data` (scratch space the motion and field share), `m.effect` (the live effect on the kart) and `m.stop()` (end the motion early). A motion can also have `onBump(m, other)` and `onWall(m, impact)`.
 
-**What effects can change:** `modifiers` multiply the kart's `maxSpeed`, `accel`, `turnRate`, `grip`, `mass`, and `scale` (size: collision radius and drawing). `onTick(kart, dt, race)` runs every step before physics and can rewrite `kart.controls` (reverse the steering, force a brake…). `tags` are free labels that rendering and other code can check with `kart.effects.hasTag('…')`; the game already reads `boost`, `shield`, `giant`, `spinout` and `ram`. `stacking` decides what using the same effect twice does: `'refresh'` (default) extends it, `'stack'` adds a second copy, `'ignore'` does nothing.
-
-**What powerups receive:** `ctx.race`, `ctx.kart`, `ctx.power`, `ctx.item`, `ctx.rng`, `ctx.events`, `ctx.spawn(entity)`, `ctx.position` (1 = leading), `ctx.racers`. Handy race helpers: `race.stillRacing()`, `race.kartsAhead(kart)`, `race.kartsBehind(kart)` (nearest first).
+**What effects can change:** `modifiers` multiply the kart's `maxSpeed`, `accel`, `turnRate`, `grip`, `mass`, and `scale` (size: collision radius and drawing). `onTick(kart, dt, race)` runs every step before physics and can rewrite `kart.controls`. `tags` are free labels other code checks with `kart.effects.hasTag('…')`; the game reads `boost`, `air` (flies over karts and grass, can't be bumped), `phase` (passes through karts), `giant`, `ride`, `bumper`, `fall`, `spinout`. `stacking` decides what using the same effect twice does: `'refresh'` (default) extends it, `'stack'` adds a second copy, `'ignore'` does nothing.
 
 ## Adding a track
 
@@ -211,4 +229,4 @@ Copy `src/tracks/meadow.js`: a list of control points (clockwise or not, the fir
 
 ## Tuning
 
-Almost every feel number is in `src/config.js`: top speed, acceleration, grip, how much grass slows you, wall bounce, item box respawn time, roulette length, slots, rocket speed, spin-out length, and the AI's skill range, caution and how often it fuses. Each powerup's own numbers (boost strength, shield time, giant size, chaos backfire chance) are at the top of its file.
+Almost every feel number is in `src/config.js`: top speed, acceleration, grip, how much grass slows you, wall bounce, item box respawn time, roulette length, slots, rocket speed, spin-out length, and the AI's skill range, caution and how often it fuses. Fusion strengths (MEGA, FUSION, FIZZLE, WILD chance and power) are in `FUSION`. Each powerup's own numbers (boost strength, hook reach, blast radius, giant size) are at the top of its file.

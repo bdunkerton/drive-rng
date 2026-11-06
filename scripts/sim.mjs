@@ -32,13 +32,14 @@ function runOne(seed) {
       r.events.on('item:use', ({ name }) => (stats.uses[name] = (stats.uses[name] ?? 0) + 1));
       r.events.on('wall', () => stats.walls++);
       r.events.on('bump', () => stats.bumps++);
-      r.events.on('item:fuse', () => count('fuses'));
+      r.events.on('item:fuse', ({ kind }) => count(kind === 'fizzle' ? 'fizzles' : kind === 'mega' ? 'megas' : 'fusions'));
+      r.events.on('wild', () => count('wilds'));
       r.events.on('hit', () => count('spin-outs'));
-      r.events.on('shield:pop', () => count('blocks'));
-      r.events.on('swap', () => count('swaps'));
-      r.events.on('steal', () => count('steals'));
-      r.events.on('copy', () => count('copies'));
-      r.events.on('chaos', ({ kart, who }) => count(kart === who ? 'chaos' : 'chaos backfires'));
+      r.events.on('pop', () => count('pops'));
+      r.events.on('blast', () => count('blasts'));
+      r.events.on('ricochet', () => count('ricochets'));
+      r.events.on('pad:ride', ({ kart, pad }) => count(kart === pad.owner ? 'own lane rides' : 'lane rides'));
+      r.events.on('hook:release', ({ passed }) => count(passed ? 'hook passes' : 'hook misses'));
     },
   });
   return { race, results, timedOut, stats };

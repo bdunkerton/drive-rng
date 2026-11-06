@@ -11,7 +11,6 @@ import { Kart, stepKart } from './kart.js';
 import { placeItemBoxes } from './entities.js';
 import './powerups/index.js';
 import { useFrontItem, fuseFront, cycleHand } from './hand.js';
-import { hitKart } from './hits.js';
 import { HumanController } from './controllers.js';
 import { AIDriver } from '../ai/driver.js';
 
@@ -36,6 +35,7 @@ export class Race {
    * @param {number} [opts.rivals]   AI karts besides the human (or total karts minus one with no human)
    * @param {object|null} [opts.humanInput]  live input object; null makes every kart AI
    * @param {number} [opts.countdown] seconds of countdown (0 to start immediately)
+   * @param {string[]|null} [opts.firstPickups] the human's first item boxes give these (first race)
    */
   constructor(opts) {
     this.track = opts.track instanceof Track ? opts.track : new Track(opts.track);
@@ -70,6 +70,10 @@ export class Race {
       this.karts.push(kart);
     }
     this.player = this.karts.find((k) => k.isPlayer) ?? null;
+    if (this.player && opts.firstPickups?.length) {
+      this.player.scriptedPickups = [...opts.firstPickups];
+      this.player.tutorialFuse = true;
+    }
     for (const kart of this.karts) this.applyTrack(kart);
 
     /** @type {any[]} */
@@ -146,6 +150,8 @@ export class Race {
       if (e.onKartTouch && e.radius > 0) {
         for (const kart of this.karts) {
           if (!e.alive) break;
+          if (!e.hitsAir && kart.effects.hasTag('air')) continue;
+          if (!e.hitsPhase && kart.effects.hasTag('phase')) continue;
           const r = e.radius + kart.radius;
           const dx = kart.x - e.x;
           const dy = kart.y - e.y;
@@ -177,7 +183,9 @@ export class Race {
     if (c.fuse) fuseFront(kart, this);
     if (c.useItem) useFrontItem(kart, this);
 
-    stepKart(kart, dt, SURFACE[kart.surface]);
+    // Karts in the air or phased out don't feel the grass.
+    const floating = kart.effects.hasTag('air') || kart.effects.hasTag('phase');
+    stepKart(kart, dt, floating ? SURFACE.road : SURFACE[kart.surface]);
     this.applyTrack(kart);
   }
 
@@ -204,6 +212,7 @@ export class Race {
         if (outward > 15) {
           kart.lastWallHit = this.time;
           this.events.emit('wall', { kart, impact: outward });
+          kart.effects.notify('onWall', kart, this, outward);
         }
       }
       lateral = side * limit;
@@ -222,6 +231,10 @@ export class Race {
       for (let j = i + 1; j < karts.length; j++) {
         const a = karts[i];
         const b = karts[j];
+        // Karts in the air fly over everyone; phased karts pass through.
+        if (a.effects.hasTag('air') || b.effects.hasTag('air') || a.effects.hasTag('phase') || b.effects.hasTag('phase')) continue;
+        // A hooked kart passes through the kart it's hooked to.
+        if (a.effects.active.some((e) => e.target === b) || b.effects.active.some((e) => e.target === a)) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const r = a.radius + b.radius;
@@ -249,10 +262,9 @@ export class Race {
             a.lastBump = b.lastBump = this.time;
             this.events.emit('bump', { a, b, impact: -rv });
           }
-          // RAM and STAMPEDE: hitting someone while charging spins them out.
           if (-rv > 6) {
-            if (a.effects.hasTag('ram') && !b.effects.hasTag('ram')) hitKart(b, this, { by: a, kind: 'ram' });
-            if (b.effects.hasTag('ram') && !a.effects.hasTag('ram')) hitKart(a, this, { by: b, kind: 'ram' });
+            a.effects.notify('onBump', a, b, this);
+            b.effects.notify('onBump', b, a, this);
           }
         }
       }

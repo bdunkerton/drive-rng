@@ -37,30 +37,50 @@ export class RaceView {
       this.particles.burst((a.x + b.x) / 2, (a.y + b.y) / 2, 6, [PAL.boostHot, PAL.white], 50, 0.25);
       if (a === this.target || b === this.target) this.shake = Math.min(3, impact / 30);
     });
-    on('item:use', ({ kart, parts }) => {
-      if (parts.includes('speed-boost')) this.particles.burst(kart.x, kart.y, 10, [PAL.boost, PAL.boostHot], 35, 0.35);
+    const ring = (x, y, radius, colours, count = 28, speed = 20, life = 0.35) => {
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2;
+        this.particles.emit({ x: x + Math.cos(a) * radius * 0.5, y: y + Math.sin(a) * radius * 0.5, vx: Math.cos(a) * speed * (radius / 20), vy: Math.sin(a) * speed * (radius / 20), life, colour: colours[i % colours.length], drag: 2 });
+      }
+    };
+    const near = (x, y) => Math.hypot(x - this.target.x, y - this.target.y) < 70;
+    on('item:use', ({ kart, wild, kind }) => {
+      if (wild) {
+        ring(kart.x, kart.y, 30, [PAL.gold, '#d29bff', '#5fd8f0', '#f07ab8'], 36, 30, 0.6);
+        if (kart === this.target) this.shake = 3;
+      }
+      if (kind === 'fizzle') this.particles.burst(kart.x, kart.y, 18, ['#f07ab8', '#5fd8f0', PAL.gold, PAL.silver], 30, 0.7);
     });
-    on('item:fuse', ({ kart }) => this.particles.burst(kart.x, kart.y, 16, [PAL.gold, PAL.white, '#9b52d2'], 45, 0.5));
+    on('item:fuse', ({ kart, kind, wild }) => {
+      if (kind === 'fizzle') this.particles.burst(kart.x, kart.y, 10, [PAL.silver, '#6a6e78'], 25, 0.5);
+      else this.particles.burst(kart.x, kart.y, wild ? 30 : 16, wild ? [PAL.gold, '#d29bff', '#5fd8f0', PAL.white] : [PAL.gold, PAL.white, '#9b52d2'], wild ? 65 : 45, 0.5);
+    });
     on('hit', ({ kart }) => {
       this.particles.burst(kart.x, kart.y, 14, [PAL.white, PAL.boostHot, PAL.danger], 60, 0.45);
       if (kart === this.target) this.shake = 4;
     });
-    on('shield:pop', ({ kart }) => this.particles.burst(kart.x, kart.y, 16, ['#9fe2ff', '#3c9fe0', PAL.white], 55, 0.4));
-    on('banana:squash', ({ banana }) => this.particles.burst(banana.x, banana.y, 12, ['#f5d442', '#c9a21e'], 50, 0.4));
-    on('rocket:fizzle', ({ rocket }) => this.particles.burst(rocket.x, rocket.y, 8, [PAL.silver, PAL.boost], 30, 0.4));
-    on('swap', ({ a, b, from }) => {
-      for (const p of [from.a, from.b, a, b]) this.particles.burst(p.x, p.y, 18, ['#5fd8f0', '#f07ab8', PAL.white], 50, 0.6);
+    on('blast', ({ x, y, radius }) => {
+      ring(x, y, radius, [PAL.boostHot, PAL.boost, PAL.danger, PAL.white], 36, 26, 0.4);
+      this.particles.burst(x, y, 20, [PAL.white, PAL.boostHot, PAL.boost], 70, 0.4);
+      if (near(x, y)) this.shake = Math.max(this.shake, 4);
     });
-    on('steal', ({ thief, victim }) => {
-      // A trail of sparks from the victim to the thief.
-      for (let i = 0; i <= 12; i++) {
-        const t = i / 12;
-        this.particles.emit({ x: lerp(victim.x, thief.x, t), y: lerp(victim.y, thief.y, t), life: 0.25 + t * 0.35, colour: i % 2 ? PAL.silver : '#e0463a', drag: 6 });
-      }
+    on('bounce', ({ x, y, radius }) => ring(x, y, radius, ['#c8ccd6', PAL.white], 24, 18, 0.3));
+    on('pop', ({ kart }) => this.particles.burst(kart.x, kart.y, 10, [PAL.white, '#c8ccd6', PAL.gold], 40, 0.35));
+    on('land', ({ kart, big }) => {
+      this.particles.burst(kart.x, kart.y, big ? 12 : 6, ['#8a6a3a', PAL.silver], 35, 0.3);
+      if (big && kart === this.target) this.shake = Math.max(this.shake, 2);
     });
-    on('chaos', ({ who }) => this.particles.burst(who.x, who.y, 20, ['#9b52d2', PAL.white, PAL.gold, '#5fd8f0'], 60, 0.6));
+    on('slipstream', ({ x, y, radius }) => ring(x, y, radius, [PAL.boost, PAL.boostHot], 20, 22, 0.3));
+    on('hole:pop', ({ kart, x, y }) => {
+      ring(x, y, 20, ['#9b52d2', '#d29bff', PAL.white], 24, 30, 0.45);
+      if (kart === this.target) this.shake = Math.max(this.shake, 2);
+    });
+    on('ricochet', ({ kart }) => this.particles.burst(kart.x, kart.y, 10, ['#9fe2ff', '#3c9fe0', PAL.white], 55, 0.3));
+    on('hook:release', ({ kart }) => this.particles.burst(kart.x, kart.y, 12, [PAL.silver, PAL.boostHot], 45, 0.35));
+    on('vanish', ({ kart }) => this.particles.burst(kart.x, kart.y, 14, ['#dfe8ff', '#9fe2ff'], 35, 0.5));
+    on('shove', ({ other }) => this.particles.burst(other.x, other.y, 6, ['#7fe05a', PAL.white], 40, 0.25));
     on('effect:start', ({ kart, effect }) => {
-      if (effect.id === 'giant') this.particles.burst(kart.x, kart.y, 18, ['#7fe05a', PAL.white], 55, 0.5);
+      if (effect.tags.includes('giant')) this.particles.burst(kart.x, kart.y, 18, ['#7fe05a', PAL.white], 55, 0.5);
     });
     return () => offs.forEach((off) => off());
   }
@@ -88,20 +108,20 @@ export class RaceView {
           });
         }
       }
-      if (k.effects.hasTag('ram') && Math.random() < 0.7) {
-        this.particles.emit({ x: k.x + fx * 6 * k.scale, y: k.y + fy * 6 * k.scale, vx: fx * 20 + (Math.random() - 0.5) * 30, vy: fy * 20 + (Math.random() - 0.5) * 30, life: 0.2, colour: Math.random() < 0.5 ? PAL.danger : PAL.white });
+      if (k.effects.hasTag('ride')) {
+        for (let i = 0; i < 3; i++) {
+          this.particles.emit({ x: k.x - fx * 7, y: k.y - fy * 7, vx: -fx * 60 + (Math.random() - 0.5) * 25, vy: -fy * 60 + (Math.random() - 0.5) * 25, life: 0.25, colour: i === 0 ? PAL.white : Math.random() < 0.5 ? '#e0463a' : PAL.boostHot });
+        }
       }
-      if (k.surface === 'grass' && k.speed > 30 && Math.random() < 0.6) {
+      if (k.effects.hasTag('fall') && Math.random() < 0.8) {
+        this.particles.emit({ x: k.x + (Math.random() - 0.5) * 10, y: k.y + (Math.random() - 0.5) * 10, vx: -k.vx * 0.2, vy: -k.vy * 0.2, life: 0.3, colour: Math.random() < 0.5 ? '#9b52d2' : '#d29bff' });
+      }
+      if (k.surface === 'grass' && k.speed > 30 && k.height === 0 && !k.effects.hasTag('phase') && Math.random() < 0.6) {
         this.particles.emit({
           x: k.x - fx * 5, y: k.y - fy * 5,
           vx: -fx * 15 + (Math.random() - 0.5) * 20, vy: -fy * 15 + (Math.random() - 0.5) * 20,
           life: 0.35, colour: Math.random() < 0.5 ? '#8a6a3a' : '#3f7f2c',
         });
-      }
-    }
-    for (const e of race.entities) {
-      if (e.kind === 'rocket' && Math.random() < 0.8) {
-        this.particles.emit({ x: e.x - Math.cos(e.angle) * 4, y: e.y - Math.sin(e.angle) * 4, vx: (Math.random() - 0.5) * 15, vy: (Math.random() - 0.5) * 15, life: 0.3, colour: Math.random() < 0.5 ? PAL.silver : PAL.boost });
       }
     }
     this.particles.update(dt);
@@ -146,13 +166,17 @@ export class RaceView {
       const half = Math.floor(size / 2);
       const cx = Math.round(k.x - camX);
       const cy = Math.round(k.y - camY);
+      const lift = Math.round(k.height);
       const x = cx - half;
-      const y = cy - half;
-      g.globalAlpha = 0.35;
-      g.drawImage(kartShadow(k.heading), x + scale, y + 2 * scale, size, size);
-      g.globalAlpha = 1;
+      const y = cy - half - lift;
+      g.globalAlpha = lift > 0 ? 0.25 : 0.35;
+      g.drawImage(kartShadow(k.heading), x + scale + Math.round(lift * 0.3), y + 2 * scale + lift, size, size);
+      // Phased karts flicker see-through.
+      const ghost = k.effects.hasTag('phase');
+      g.globalAlpha = ghost ? (Math.floor(this.race.time * 20) % 2 ? 0.35 : 0.55) : 1;
       g.drawImage(kartFrame(k.color, k.heading), x, y, size, size);
-      this.drawKartExtras(g, k, cx, cy, scale);
+      g.globalAlpha = 1;
+      this.drawKartExtras(g, k, cx, cy - lift, scale);
     }
 
     // A little marker over the player's kart before the start so you can find yourself.
@@ -169,15 +193,31 @@ export class RaceView {
     this.particles.draw(g, camX, camY);
   }
 
-  /** Shield bubbles and spin-out stars. */
+  /** Bumper bubbles, hook lines and spin-out stars. */
   drawKartExtras(g, k, cx, cy, scale) {
-    const shield = k.effects.active.find((e) => e.id === 'shield');
-    if (shield && !(shield.remaining < 1.5 && Math.floor(shield.remaining * 8) % 2)) {
+    const bumper = k.effects.active.find((e) => e.tags.includes('bumper'));
+    if (bumper && !(bumper.remaining < 1.5 && Math.floor(bumper.remaining * 8) % 2)) {
       const r = 9 * scale;
-      g.fillStyle = (shield.charges ?? 1) > 1 ? '#fff' : '#9fe2ff';
+      g.fillStyle = '#9fe2ff';
       for (let i = 0; i < 28; i++) {
         const a = (i / 28) * Math.PI * 2 + this.race.time * 1.5;
-        g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1);
+        const wobble = Math.sin(a * 3 + this.race.time * 8) * 0.8;
+        g.fillRect(Math.round(cx + Math.cos(a) * (r + wobble)), Math.round(cy + Math.sin(a) * (r + wobble)), 1, 1);
+      }
+    }
+    const tether = k.effects.active.find((e) => e.target);
+    if (tether) {
+      const t = tether.target;
+      const camX = this.drawCamX;
+      const camY = this.drawCamY;
+      const tx = Math.round(t.x - camX);
+      const ty = Math.round(t.y - camY - t.height);
+      const n = Math.max(2, Math.round(Math.hypot(tx - cx, ty - cy) / 3));
+      for (let i = 0; i <= n; i++) {
+        const u = i / n;
+        const sag = Math.sin(Math.PI * u) * 3;
+        g.fillStyle = i % 2 ? '#a5743e' : PAL.silver;
+        g.fillRect(Math.round(cx + (tx - cx) * u), Math.round(cy + (ty - cy) * u + sag), 1, 1);
       }
     }
     if (k.effects.has('spinout')) {

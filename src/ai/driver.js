@@ -6,6 +6,7 @@
 import { AI } from '../config.js';
 import { clamp, angleDiff, lerp } from '../core/math.js';
 import { isReady, canFuse, aiWantsItem } from '../sim/hand.js';
+import { powerups } from '../sim/powerups/index.js';
 
 export class AIDriver {
   /**
@@ -122,8 +123,10 @@ export class AIDriver {
     this.itemDelay -= dt;
     if (this.itemDelay > 0) return out;
 
-    if (canFuse(front, second) && this.fuseRoll === undefined) this.fuseRoll = this.rng.chance(AI.fuseChance);
-    if (canFuse(front, second) && this.fuseRoll) out.fuse = true;
+    // Rivals know which pairs fizzle and never fuse those on purpose.
+    const fusable = canFuse(front, second) && !powerups.areOpposites(front.parts[0], second.parts[0]);
+    if (fusable && this.fuseRoll === undefined) this.fuseRoll = this.rng.chance(AI.fuseChance);
+    if (fusable && this.fuseRoll) out.fuse = true;
     else if (aiWantsItem(front, kart, race)) out.useItem = true;
     else {
       this.holdingFor = (this.holdingFor ?? 0) + dt;

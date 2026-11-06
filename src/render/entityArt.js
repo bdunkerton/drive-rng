@@ -32,41 +32,38 @@ export const ENTITY_ART = {
   },
 };
 
-ENTITY_ART.rocket = (g, r, sx, sy) => {
-  const cx = Math.cos(r.angle);
-  const cy = Math.sin(r.angle);
-  g.fillStyle = PAL.shadow;
-  g.fillRect(sx - 2, sy + 3, 5, 2);
+// A speed-lane pad: an orange chevron pointing the way it was laid, fading out.
+ENTITY_ART['speed-pad'] = (g, pad, sx, sy) => {
+  const left = 1 - pad.age / pad.life;
+  if (left < 0.3 && Math.floor(pad.age * 12) % 2) return;
+  const fx = Math.cos(pad.angle);
+  const fy = Math.sin(pad.angle);
+  const px = -fy;
+  const py = fx;
+  g.globalAlpha = 0.45 + 0.4 * left;
   for (let t = -3; t <= 3; t++) {
-    g.fillStyle = t === 3 ? PAL.white : t <= -3 ? PAL.boostHot : '#e0463a';
-    g.fillRect(Math.round(sx + cx * t) - 1, Math.round(sy + cy * t) - 1, 2, 2);
+    const back = Math.abs(t) * 0.8;
+    g.fillStyle = Math.abs(t) < 2 ? PAL.boostHot : PAL.boost;
+    g.fillRect(Math.round(sx + px * t - fx * back), Math.round(sy + py * t - fy * back), 1, 1);
   }
-  if (r.steal) {
-    // HEIST rockets carry a little magnet tip.
-    g.fillStyle = PAL.silver;
-    g.fillRect(Math.round(sx + cx * 4) - 1, Math.round(sy + cy * 4) - 1, 2, 2);
-  }
+  g.globalAlpha = 1;
 };
 
-const BANANA = [
-  '...kd',
-  '...yd',
-  '..yyd',
-  'yyyd.',
-  '.dd..',
-];
-const BANANA_COLOURS = { y: '#f5d442', d: '#c9a21e', k: '#5a3b22' };
-
-ENTITY_ART.banana = (g, b, sx, sy) => {
-  g.fillStyle = PAL.shadow;
-  g.fillRect(sx - 2, sy + 2, 5, 2);
-  for (let y = 0; y < BANANA.length; y++) {
-    for (let x = 0; x < BANANA[y].length; x++) {
-      const col = BANANA_COLOURS[BANANA[y][x]];
-      if (!col) continue;
-      g.fillStyle = col;
-      g.fillRect(sx - 2 + x, sy - 3 + y, 1, 1);
-    }
+// A black hole: a dark disc with a swirling purple rim that grows, then collapses.
+ENTITY_ART.hole = (g, h, sx, sy) => {
+  const t = Math.min(1, h.age / h.life);
+  const grow = t < 0.2 ? t / 0.2 : t > 0.8 ? (1 - t) / 0.2 : 1;
+  const r = Math.max(1, Math.round(9 * h.size * grow));
+  g.fillStyle = '#05040a';
+  for (let y = -r; y <= r; y++) {
+    const w = Math.round(Math.sqrt(r * r - y * y));
+    g.fillRect(sx - w, sy + y, w * 2 + 1, 1);
+  }
+  const n = 20;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + h.age * 7;
+    g.fillStyle = i % 3 ? '#9b52d2' : '#d29bff';
+    g.fillRect(Math.round(sx + Math.cos(a) * (r + 1)), Math.round(sy + Math.sin(a) * (r + 1)), 1, 1);
   }
 };
 

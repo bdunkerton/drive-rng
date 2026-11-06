@@ -1,5 +1,5 @@
-// Things on the track that aren't karts: item boxes here; rockets and bananas in
-// ./hazards.js; whatever else tomorrow.
+// Things on the track that aren't karts: item boxes here; speed pads and black-hole
+// marks in ./hazards.js; whatever else tomorrow.
 //
 // An entity is any object with:
 //   kind            string, used by the renderer to pick a drawing (src/render/entityArt.js)
@@ -9,13 +9,14 @@
 // and optionally:
 //   onKartTouch(kart, race)   called once per step per kart whose circle overlaps `radius`
 //   radius                    touch radius (default 0 = never touched)
+//   hitsAir, hitsPhase        set true to touch karts that are in the air / phased out
+//                             (by default those karts pass over or through it)
 //
 // The race calls update on every entity each step, then checks touches.
 
 import { ITEMS } from '../config.js';
 import { powerups } from './powerups/index.js';
 import { makeItem, giveItem } from './hand.js';
-import { toast } from './toast.js';
 
 export const ROULETTE_SECONDS = ITEMS.rouletteSeconds;
 
@@ -29,6 +30,8 @@ export class ItemBox {
     this.active = true;
     this.respawnIn = 0;
     this.phase = (x * 7 + y * 13) % 6.28;
+    this.hitsAir = true;
+    this.hitsPhase = true;
   }
 
   update(dt) {
@@ -46,15 +49,11 @@ export class ItemBox {
     race.events.emit('item:box', { kart, box: this });
     // A full hand (or a finished kart) just smashes the box.
     if (!kart.hasFreeSlot || kart.finished) return;
-    const id = powerups.roll(race.rng, race.context(kart));
+    // A first-race kart gets its scripted items first (see ITEMS.firstPickups).
+    const id = kart.scriptedPickups?.length ? kart.scriptedPickups.shift() : powerups.roll(race.rng, race.context(kart));
     if (!id) return;
     giveItem(kart, makeItem([id], ROULETTE_SECONDS));
-    // Take Two: extra copies of this pickup. With no room left they fuse onto it (SUPER).
-    const extra = kart.extraCopies;
-    kart.extraCopies = 0;
-    for (let i = 0; i < extra; i++) giveItem(kart, makeItem([id], ROULETTE_SECONDS), { overflow: 'fuse' });
-    if (extra > 0) toast(race, kart, `X${extra + 1} PICKUP!`, 'gold');
-    race.events.emit('item:pickup', { kart, item: id, copies: extra + 1 });
+    race.events.emit('item:pickup', { kart, item: id });
   }
 }
 

@@ -3,7 +3,7 @@
 // An effect is a plain object:
 //
 //   {
-//     id: 'speed-boost',          // same id twice follows `stacking` below
+//     id: 'boost',                // same id twice follows `stacking` below
 //     duration: 1.5,              // seconds; Infinity for "until removed"
 //     modifiers: {                // multiplied into the kart's stats while active
 //       maxSpeed: 1.5, accel: 2, turnRate: 1, grip: 1, mass: 1,
@@ -13,6 +13,8 @@
 //     onStart(kart, race) {},     // optional hooks
 //     onTick(kart, dt, race) {},  // runs every step BEFORE physics; may change kart.controls
 //     onEnd(kart, race) {},
+//     onBump(kart, other, race) {},   // this kart bumped another one
+//     onWall(kart, race, impact) {},  // this kart hit the fence
 //   }
 //
 // Hooks are optional. `remaining` is filled in when the effect is added.
@@ -42,32 +44,34 @@ export class EffectList {
   }
 
   remove(id, kart, race) {
-    const keep = [];
-    for (const e of this.active) {
-      if (e.id === id) {
-        e.onEnd?.(kart, race);
-        race?.events.emit('effect:end', { kart, effect: e });
-      } else keep.push(e);
+    const gone = this.active.filter((e) => e.id === id);
+    this.active = this.active.filter((e) => e.id !== id);
+    for (const e of gone) {
+      e.onEnd?.(kart, race);
+      race?.events.emit('effect:end', { kart, effect: e });
     }
-    this.active = keep;
   }
 
   tick(kart, dt, race) {
-    for (const e of this.active) {
+    for (const e of [...this.active]) {
       e.age += dt;
       e.remaining -= dt;
       e.onTick?.(kart, dt, race);
     }
     if (this.active.some((e) => e.remaining <= 0)) {
-      const keep = [];
-      for (const e of this.active) {
-        if (e.remaining <= 0) {
-          e.onEnd?.(kart, race);
-          race?.events.emit('effect:end', { kart, effect: e });
-        } else keep.push(e);
+      // Take the finished ones out first: an onEnd may add a new effect (a pop-out boost).
+      const ended = this.active.filter((e) => e.remaining <= 0);
+      this.active = this.active.filter((e) => e.remaining > 0);
+      for (const e of ended) {
+        e.onEnd?.(kart, race);
+        race?.events.emit('effect:end', { kart, effect: e });
       }
-      this.active = keep;
     }
+  }
+
+  /** Call an optional hook (onBump, onWall, onHit...) on every active effect that has it. */
+  notify(hook, ...args) {
+    for (const e of [...this.active]) e[hook]?.(...args);
   }
 
   /** Product of every active effect's modifier for one stat. */
