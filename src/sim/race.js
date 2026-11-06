@@ -9,6 +9,7 @@ import { loopDelta, sign } from '../core/math.js';
 import { Track } from './track.js';
 import { Kart, stepKart } from './kart.js';
 import { placeItemBoxes } from './entities.js';
+import { placeObstacles, resolveSolids } from './obstacles.js';
 import './powerups/index.js';
 import { useFrontItem, fuseFront, cycleHand } from './hand.js';
 import { HumanController } from './controllers.js';
@@ -79,6 +80,7 @@ export class Race {
     /** @type {any[]} */
     this.entities = [];
     for (const box of placeItemBoxes(this.track)) this.spawn(box);
+    for (const stack of placeObstacles(this.track)) this.spawn(stack);
     this.updatePositions();
   }
 
@@ -144,6 +146,7 @@ export class Race {
 
     for (const kart of this.karts) this.stepOne(kart, dt);
     this.resolveBumps();
+    resolveSolids(this);
 
     for (const e of this.entities) {
       e.update(dt, this);

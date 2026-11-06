@@ -152,15 +152,19 @@ export function stepKart(kart, dt, surface) {
   fwd -= fwd * surface.drag * dt;
   if (fwd > topSpeed) fwd = approach(fwd, topSpeed, 190 * dt);
 
-  // Sideways slide dies out according to grip.
-  side *= Math.exp(-st.grip * dt);
+  // Sideways slide dies out according to grip. Past a point the tyres let go and the
+  // kart keeps sliding: you have to catch it.
+  const grip = Math.abs(side) > KART.slideAt ? st.grip * KART.slideGrip : st.grip;
+  side *= Math.exp(-grip * dt);
 
   // Rebuild velocity from the pre-turn axes, then turn. Turning therefore creates a
   // little sideways slide on the next step, which grip cleans up: an arcade drift feel.
   kart.vx = fx * fwd - fy * side;
   kart.vy = fy * fwd + fx * side;
 
-  const turnScale = clamp(Math.abs(fwd) / st.turnFullAt, 0, 1);
+  // Steering is sharpest at low-to-middling speed and gets heavier toward (and past) top speed.
+  const atSpeed = Math.min(1.5, Math.abs(fwd) / KART.maxSpeed);
+  const turnScale = clamp(Math.abs(fwd) / st.turnFullAt, 0, 1) * Math.max(0.3, 1 - (1 - KART.turnAtTopSpeed) * atSpeed);
   const direction = fwd >= 0 ? 1 : -1;
   kart.heading += steer * st.turnRate * turnScale * direction * dt;
 

@@ -55,10 +55,13 @@ test('three pairs of opposites, and they go both ways', () => {
 
 // ---- The item rule: every item helps whoever uses it ------------------------------
 
-/** How far the player gets in `seconds` after using `parts` on the opening straight (null = no item). */
-function distanceWith(parts, seconds = 3) {
+/**
+ * How far the player gets in `seconds` after using `parts` on the front straight (null = no
+ * item). Short enough that nobody reaches the first corner, since this driver can't steer.
+ */
+function distanceWith(parts, seconds = 2) {
   const { race, input, me, others } = setup({ karts: 2 });
-  place(race, me, 40);
+  place(race, me, 0);
   place(race, others[0], 3000);
   input.throttle = 1;
   steps(race, 1.2);

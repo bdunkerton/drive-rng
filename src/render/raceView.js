@@ -55,6 +55,11 @@ export class RaceView {
       if (kind === 'fizzle') this.particles.burst(kart.x, kart.y, 10, [PAL.silver, '#6a6e78'], 25, 0.5);
       else this.particles.burst(kart.x, kart.y, wild ? 30 : 16, wild ? [PAL.gold, '#d29bff', '#5fd8f0', PAL.white] : [PAL.gold, PAL.white, '#9b52d2'], wild ? 65 : 45, 0.5);
     });
+    on('tires:hit', ({ kart, tires, impact }) => {
+      this.particles.burst((kart.x + tires.x) / 2, (kart.y + tires.y) / 2, 8, ['#34333b', PAL.white, PAL.silver], 45, 0.3);
+      if (kart === this.target) this.shake = Math.min(4, impact / 25);
+    });
+    on('tires:shove', ({ tires }) => this.particles.burst(tires.x, tires.y, 8, ['#34333b', '#8a6a3a'], 40, 0.35));
     on('hit', ({ kart }) => {
       this.particles.burst(kart.x, kart.y, 14, [PAL.white, PAL.boostHot, PAL.danger], 60, 0.45);
       if (kart === this.target) this.shake = 4;
@@ -153,8 +158,9 @@ export class RaceView {
 
     const onScreen = (x, y, m = 16) => x > camX - m && x < camX + VIEW.width + m && y > camY - m && y < camY + VIEW.height + m;
 
+    const view = { viewer: this.target, time: this.race.time };
     for (const e of this.race.entities) {
-      if (onScreen(e.x, e.y)) drawEntity(g, e, Math.round(e.x - camX), Math.round(e.y - camY));
+      if (onScreen(e.x, e.y)) drawEntity(g, e, Math.round(e.x - camX), Math.round(e.y - camY), view);
     }
 
     const karts = [...this.race.karts].sort((a, b) => a.y - b.y);

@@ -15,14 +15,21 @@ export const SIM = {
 
 export const KART = {
   radius: 5,            // collision circle
-  maxSpeed: 132,        // top speed on asphalt
-  reverseMaxSpeed: 40,
-  accel: 105,           // throttle
-  brake: 230,           // braking while moving forward
-  coastDrag: 0.55,      // speed lost per second off the throttle (fraction)
-  turnRate: 2.7,        // radians per second at full steer, at speed
-  turnFullAt: 45,       // below this speed, turning scales down (no spinning on the spot)
-  grip: 9,              // how fast sideways sliding dies out (higher = grippier)
+  maxSpeed: 172,        // top speed on asphalt
+  reverseMaxSpeed: 45,
+  accel: 125,           // throttle
+  brake: 250,           // braking while moving forward
+  coastDrag: 0.5,       // speed lost per second off the throttle (fraction)
+  turnRate: 3.3,        // radians per second at full steer, at low-to-middling speed
+  turnFullAt: 40,       // below this speed, turning scales down (no spinning on the spot)
+  // Steering gets heavier the faster you go: at top speed you only have this fraction of
+  // turnRate (and less again on a boost). Corners have to be braked for.
+  turnAtTopSpeed: 0.45,
+  grip: 5.5,            // how fast sideways sliding dies out (higher = grippier)
+  // Once a kart is sliding sideways faster than this, it loses more grip and keeps
+  // sliding until you straighten it out or slow down.
+  slideAt: 55,
+  slideGrip: 0.55,      // grip multiplier while sliding
   mass: 1,
 };
 
@@ -52,7 +59,8 @@ export const RACE = {
 
 export const ITEMS = {
   boxRadius: 6,
-  boxRespawnSeconds: 3.5,
+  // Boxes respawn separately for each kart, so a box the leader took is still there for you.
+  boxRespawnSeconds: 2.5,
   // How long a slot "spins" after a pickup before the item can be used or fused.
   rouletteSeconds: 0.9,
   // Item slots every kart has. Fuse turns the front two into one.
@@ -84,8 +92,12 @@ export const AI = {
   // Each rival gets a skill between these. Skill scales top speed and cornering judgement.
   skillMin: 0.88,
   skillMax: 0.975,
-  // Total turning (radians) a rival can see ahead before it starts lifting off.
-  freeBend: 1.0,
+  // How far ahead a rival plans its braking, and how much of its steering it dares use
+  // in a corner (scaled by skill: the best rivals use the most).
+  planAhead: 320,
+  cornerMarginMin: 0.62,
+  cornerMarginMax: 0.86,
+  brakeMargin: 0.7,     // fraction of real braking power it plans with
   lookaheadBase: 26,
   lookaheadPerSpeed: 0.32,
   // Seconds between deciding to use an item and pressing the button.

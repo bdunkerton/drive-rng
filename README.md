@@ -1,6 +1,6 @@
 # Drive RNG
 
-A top-down pixel kart racer where the items are the point. One track, three AI rivals, eight powerups, and two item slots you can fuse into something stranger. Every item helps whoever uses it; anything it does to the other karts is collateral, and that's the risk.
+A top-down pixel kart racer where the items are the point. One short track (about 20 seconds a lap), three AI rivals, tyre stacks to drive round, eight powerups, and two item slots you can fuse into something stranger. Every item helps whoever uses it; anything it does to the other karts is collateral, and that's the risk.
 
 Plain JavaScript in the browser. No build step and no dependencies.
 
@@ -36,7 +36,15 @@ No Node? `python -m http.server 8080` in this folder works too (tests and the si
 | M | Mute |
 | ` (backtick) | Debug overlay |
 
-Drive through a **?** box to get an item. It spins for a moment, then settles into a slot at the top of the screen. The gold-framed slot on the left is your **front** item: Space uses it.
+### Driving
+
+The karts are quick and they don't drive themselves. Steering gets heavier the faster you go (heavier still on a boost), so corners have to be braked for. Turn in too hard and the tyres let go: the kart keeps sliding until you straighten up or slow down. Grass is slow. Finding the line is most of a good lap.
+
+**Tyre stacks** sit on the track: a wall across half the front straight, one on the apex of the right sweeper, one in the middle of the chicane, one on the inside of the hairpin, and a pair on the back section. A normal kart bounces off them. A BULK giant can shove them out of the way, a SPRING jumps over them, and a GHOST passes through.
+
+### Items
+
+Drive through a **?** box to get an item. Boxes are **per kart**: one you've taken is gone for you for a couple of seconds, but it's still there for everyone else, so the back of the pack gets as many items as the leader. It spins for a moment, then settles into a slot at the top of the screen. The gold-framed slot on the left is your **front** item: Space uses it.
 
 ## Powerups
 
@@ -128,7 +136,8 @@ src/
     effects.js         timed effects on karts (what every powerup adds)
     hand.js            the items a kart holds: slots, fusing, cycling, using
     hits.js            spin-outs (only a close BLAST causes one)
-    entities.js        things on the track: item boxes
+    entities.js        things on the track: item boxes (taken separately by each kart)
+    obstacles.js       tyre stacks: solid for normal karts, shoved by giants
     hazards.js         things items leave behind: speed-lane pads, black-hole marks
     toast.js           short messages for one driver ("HIT BY BOLT!")
     controllers.js     human controller (reads an input object) and an idle one
@@ -158,7 +167,7 @@ The split that matters: **`src/sim` and `src/ai` never touch the browser.** That
    3. **effects tick** — they run *after* the controller, so an effect may override controls (the boost forces the throttle on, a spin-out takes the wheel away);
    4. hand actions: `cycle`, then `fuse`, then `useItem` (see `sim/hand.js`);
    5. **physics** moves the kart, then the **track** works out its surface, pushes it off the fence and adds to its distance travelled.
-3. **Kart-to-kart bumps** (and RAM hits).
+3. **Kart-to-kart bumps**, then **tyre stacks** against karts.
 4. **Entities** update, and any kart overlapping an entity's `radius` triggers its `onKartTouch`.
 5. **Laps**, **positions**, and whether the race is over.
 
@@ -170,7 +179,7 @@ The race emits events on `race.events`. Rendering, sound and the HUD listen; pow
 - Hand: `item:box`, `item:pickup`, `item:use` (`{ kart, item, name, parts, kind, wild, showcase, motion, field }`), `item:fuse` (`{ kart, item, name, kind, wild, parts, showcase }`), `item:cycle`, `mega`, `fizzle`, `wild`
 - Moves: `move:end`, `slipstream`, `pad:ride`, `bounce`, `pop`, `land`, `hook:latch`, `hook:release`, `blast`, `vanish`, `hole:pop`, `shove`, `ricochet`
 - Hits: `hit` (a spin-out landed), `hit:shrug` (a giant or rocket rider ignored it)
-- Other: `effect:start`, `effect:end`, `entity:spawn`, `wall`, `bump`
+- Other: `effect:start`, `effect:end`, `entity:spawn`, `wall`, `bump`, `tires:hit` (a kart bounced off a stack), `tires:shove` (a giant pushed one)
 - `sfx` (`{ name, kart }` plays a sound from `audio/sound.js`), `toast` (`{ kart, text, colour }` shows a message if that kart is the player)
 
 These are what to hook analytics and clip detection onto: a `finish` shortly after an `item:use` with `wild` or a `showcase`, for example.
@@ -227,8 +236,8 @@ It fuses with everything automatically: its motion with every other field, and e
 
 ## Adding a track
 
-Copy `src/tracks/meadow.js`: a list of control points (clockwise or not, the first point is the start line), road width, curb and grass widths, rows of item boxes as fractions of the lap, and some scenery. Add it to the list in `test/track.test.js`; the tests check that no two stretches of road are close enough to cut between and that it fits in the world. (There's no track picker yet; the race scene uses Meadow Loop.)
+Copy `src/tracks/meadow.js`: a list of control points (clockwise or not, the first point is the start line), road width, curb and grass widths, rows of item boxes as fractions of the lap, tyre stacks (`obstacles: [{ at, lateral }]`, a fraction of the lap and pixels right of the centreline; put two at the same `at` to make a wall), and some scenery. Add it to the list in `test/track.test.js`; the tests check that no two stretches of road are close enough to cut between and that it fits in the world. (There's no track picker yet; the race scene uses Meadow Loop.)
 
 ## Tuning
 
-Almost every feel number is in `src/config.js`: top speed, acceleration, grip, how much grass slows you, wall bounce, item box respawn time, roulette length, slots, rocket speed, spin-out length, and the AI's skill range, caution and how often it fuses. Fusion strengths (MEGA, FUSION, FIZZLE, WILD chance and power) are in `FUSION`. Each powerup's own numbers (boost strength, hook reach, blast radius, giant size) are at the top of its file.
+Almost every feel number is in `src/config.js`: top speed, acceleration, grip, how heavy the steering gets at speed (`turnAtTopSpeed`), when a slide lets go (`slideAt`, `slideGrip`), how much grass slows you, wall bounce, item box respawn time, roulette length, slots, rocket speed, spin-out length, and the AI's skill range, how hard it dares corner, and how often it fuses. Tyre stack numbers (size, how heavy a kart has to be to shove one) are at the top of `src/sim/obstacles.js`. Fusion strengths (MEGA, FUSION, FIZZLE, WILD chance and power) are in `FUSION`. Each powerup's own numbers (boost strength, hook reach, blast radius, giant size) are at the top of its file.

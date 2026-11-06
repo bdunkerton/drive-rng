@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { setup, give, press, DT } from './_helpers.js';
+import { setup, place, give, press, DT } from './_helpers.js';
 import { ItemBox, ROULETTE_SECONDS } from '../src/sim/entities.js';
 import { makeItem, itemName, giveItem } from '../src/sim/hand.js';
 import { powerups } from '../src/sim/powerups/index.js';
@@ -19,7 +19,7 @@ test('driving through an item box fills a slot after the roulette', () => {
   race.step(DT);
   assert.equal(me.items.length, 1);
   assert.equal(me.itemReady, false);
-  assert.equal(box.active, false);
+  assert.equal(box.availableTo(me, race.time), false);
   for (let i = 0; i < Math.ceil(ROULETTE_SECONDS / DT) + 1; i++) race.step(DT);
   assert.equal(me.itemReady, true);
 });
@@ -32,10 +32,29 @@ test('a full hand just smashes the box', () => {
   race.events.on('item:pickup', (e) => pickups.push(e));
   const box = race.spawn(new ItemBox(me.x, me.y));
   race.step(DT);
-  assert.equal(box.active, false);
+  assert.equal(box.availableTo(me, race.time), false);
   assert.equal(pickups.length, 0);
   assert.equal(me.items.length, 2);
   assert.equal(giveItem(me, makeItem(['boost'])), 'dropped');
+});
+
+test('boxes are per kart: one you took is still there for everyone else', () => {
+  const { race, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 600);
+  const box = race.spawn(new ItemBox(me.x, me.y));
+  race.step(DT);
+  assert.equal(me.items.length, 1);
+  assert.equal(box.availableTo(me, race.time), false);
+  assert.equal(box.availableTo(others[0], race.time), true);
+  place(race, others[0], 300);
+  race.step(DT);
+  assert.equal(others[0].items.length, 1);
+  // It comes back for you after the respawn time.
+  place(race, me, 900);
+  place(race, others[0], 1200);
+  for (let i = 0; i < Math.ceil(ITEMS.boxRespawnSeconds / DT) + 1; i++) race.step(DT);
+  assert.equal(box.availableTo(me, race.time), true);
 });
 
 test('space uses the front item only', () => {

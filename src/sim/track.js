@@ -111,6 +111,13 @@ export class Track {
     const raw = new Float64Array(count);
     for (let i = 0; i < count; i++) raw[i] = clamp(bend[i] * 2600, -limit, limit);
     this.racingLine = smooth(smooth(raw, 10), 10);
+    // Smoothed curvature, for planning corner speeds.
+    this.smoothCurvature = smooth(this.curvature, 5);
+  }
+
+  /** Smoothed curvature (radians per pixel, positive = bending right) at loop distance s. */
+  curvatureAt(s) {
+    return this.smoothCurvature[this.sampleIndex(s)];
   }
 
   sampleIndex(s) {

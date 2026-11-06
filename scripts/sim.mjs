@@ -35,6 +35,9 @@ function runOne(seed) {
       r.events.on('item:fuse', ({ kind }) => count(kind === 'fizzle' ? 'fizzles' : kind === 'mega' ? 'megas' : 'fusions'));
       r.events.on('wild', () => count('wilds'));
       r.events.on('hit', () => count('spin-outs'));
+      r.events.on('tires:hit', () => count('tyre hits'));
+      r.events.on('tires:shove', () => count('tyre shoves'));
+      r.events.on('wall', () => count('wall hits'));
       r.events.on('pop', () => count('pops'));
       r.events.on('blast', () => count('blasts'));
       r.events.on('ricochet', () => count('ricochets'));

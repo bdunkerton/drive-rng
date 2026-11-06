@@ -99,6 +99,9 @@ export class Sound {
       // The sad horn: two flat honks sliding down.
       case 'fizzle': return [0, 0.22].forEach((d, i) => this.tone([330, 262][i], 0.3, { type: 'sawtooth', volume: 0.09, slideTo: [300, 180][i], delay: d }));
       case 'wall': return this.noise(0.15, { volume: 0.25, filter: 400 });
+      case 'tires':
+        this.noise(0.12, { volume: 0.2, filter: 300 });
+        return this.tone(90, 0.15, { type: 'square', volume: 0.1, slideTo: 60 });
       case 'bump': return this.tone(140, 0.1, { volume: 0.12, slideTo: 70 });
       case 'lap': return [0, 0.09].forEach((d, i) => this.tone(784 + i * 262, 0.12, { volume: 0.1, delay: d }));
       case 'final-lap': return [0, 0.1, 0.2].forEach((d, i) => this.tone(523 * [1, 1.25, 1.5][i], 0.15, { volume: 0.12, delay: d }));
@@ -143,6 +146,8 @@ export class Sound {
     on('item:pickup', ({ kart }) => mine(kart) && this.play('pickup'));
     on('sfx', ({ name, kart }) => (!kart || mine(kart)) && this.play(name));
     on('wall', ({ kart }) => mine(kart) && this.play('wall'));
+    on('tires:hit', ({ kart }) => mine(kart) && this.play('tires'));
+    on('tires:shove', ({ kart }) => mine(kart) && this.play('bump'));
     on('bump', ({ a, b }) => (mine(a) || mine(b)) && this.play('bump'));
     on('lap', ({ kart, lap }) => mine(kart) && lap < race.laps - 1 && this.play('lap'));
     on('final-lap', ({ kart }) => mine(kart) && this.play('final-lap'));

@@ -20,6 +20,11 @@ import { makeItem, giveItem } from './hand.js';
 
 export const ROULETTE_SECONDS = ITEMS.rouletteSeconds;
 
+/**
+ * A box of items. Each kart takes its own copy: once you've smashed a box it's gone for
+ * you until it respawns, but it's still there for everyone else. So a kart at the back
+ * of the pack gets as many items as the leader.
+ */
 export class ItemBox {
   constructor(x, y) {
     this.kind = 'item-box';
@@ -27,25 +32,33 @@ export class ItemBox {
     this.y = y;
     this.radius = ITEMS.boxRadius;
     this.alive = true;
-    this.active = true;
-    this.respawnIn = 0;
     this.phase = (x * 7 + y * 13) % 6.28;
     this.hitsAir = true;
     this.hitsPhase = true;
+    /** @type {Map<number, number>} kart id -> race time the box comes back for that kart */
+    this.backAt = new Map();
+  }
+
+  /** Can this kart take the box right now? */
+  availableTo(kart, time) {
+    if (!kart) return true;
+    const t = this.backAt.get(kart.id);
+    return t === undefined || time >= t;
+  }
+
+  /** Seconds until the box is back for this kart (0 if it's there). */
+  respawnIn(kart, time) {
+    const t = kart ? this.backAt.get(kart.id) : undefined;
+    return t === undefined ? 0 : Math.max(0, t - time);
   }
 
   update(dt) {
     this.phase += dt * 3;
-    if (!this.active) {
-      this.respawnIn -= dt;
-      if (this.respawnIn <= 0) this.active = true;
-    }
   }
 
   onKartTouch(kart, race) {
-    if (!this.active) return;
-    this.active = false;
-    this.respawnIn = ITEMS.boxRespawnSeconds;
+    if (!this.availableTo(kart, race.time)) return;
+    this.backAt.set(kart.id, race.time + ITEMS.boxRespawnSeconds);
     race.events.emit('item:box', { kart, box: this });
     // A full hand (or a finished kart) just smashes the box.
     if (!kart.hasFreeSlot || kart.finished) return;

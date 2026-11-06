@@ -3,10 +3,11 @@
 // hand: fusing sometimes, using items when they'd do something. It also backs out if
 // it gets stuck.
 
-import { AI } from '../config.js';
-import { clamp, angleDiff, lerp } from '../core/math.js';
+import { AI, KART } from '../config.js';
+import { clamp, angleDiff, lerp, loopDelta } from '../core/math.js';
 import { isReady, canFuse, aiWantsItem } from '../sim/hand.js';
 import { powerups } from '../sim/powerups/index.js';
+import { solidAhead } from '../sim/obstacles.js';
 
 export class AIDriver {
   /**
@@ -47,11 +48,14 @@ export class AIDriver {
       const side = blocker.lateral > kart.lateral ? -1 : 1;
       this.laneTarget = clamp(blocker.lateral + side * 14, -track.halfWidth + 6, track.halfWidth - 6);
     }
-    this.lane = lerp(this.lane, this.laneTarget, clamp(dt * 1.5, 0, 1));
+    // Tyre stacks: if the planned line goes through one, pick a side and commit.
+    const look = AI.lookaheadBase + Math.max(0, speed) * AI.lookaheadPerSpeed;
+    const avoid = this.planAroundSolids(kart, race, 60 + Math.max(0, speed) * 1.3);
+    this.lane = lerp(this.lane, this.laneTarget, clamp(dt * (avoid !== null ? 8 : 1.5), 0, 1));
 
     // --- Steering -------------------------------------------------------------
-    const look = AI.lookaheadBase + Math.max(0, speed) * AI.lookaheadPerSpeed;
-    const aheadS = kart.s + look;
+    // Swerving round a stack, it aims at the gap itself rather than far up the road.
+    const aheadS = kart.s + (avoid !== null ? clamp(avoid, 30, look) : look);
     const offset = clamp(track.racingLineAt(aheadS) * this.skill + this.lane, -track.halfWidth + 5, track.halfWidth - 5);
     const target = track.pointAt(aheadS, offset);
     const desired = Math.atan2(target.y - kart.y, target.x - kart.x);
@@ -59,11 +63,7 @@ export class AIDriver {
     let steer = clamp(turn * 2.8, -1, 1);
 
     // --- Speed planning -------------------------------------------------------
-    const horizon = 18 + Math.max(0, speed) * 1.05;
-    const bend = track.bendBetween(kart.s + 8, kart.s + 8 + horizon);
-    // Better drivers brake later and less. Gentle bends don't need any braking at all.
-    const caution = lerp(1.0, 0.55, clamp((this.skill - 0.85) / 0.15, 0, 1));
-    let targetSpeed = (stats.maxSpeed * this.skill) / (1 + Math.max(0, bend - AI.freeBend) * caution * 0.6);
+    let targetSpeed = Math.min(stats.maxSpeed * this.skill, this.planSpeed(kart, race, stats));
     if (Math.abs(turn) > 0.7) targetSpeed *= 0.7;
     targetSpeed = Math.max(targetSpeed, 34);
 
@@ -138,6 +138,60 @@ export class AIDriver {
     this.holdingFor = 0;
     this.fuseRoll = undefined;
     return out;
+  }
+
+  /**
+   * The fastest speed it can be doing right now and still make every corner in the next
+   * stretch of road: for each point ahead, the speed its steering can hold through that
+   * curve, plus how much it could brake away before getting there.
+   */
+  planSpeed(kart, race, stats) {
+    const track = race.track;
+    const skillT = clamp((this.skill - AI.skillMin) / (AI.skillMax - AI.skillMin || 1), 0, 1);
+    // Steering available at low speed, and how much of it fades by top speed.
+    const t0 = stats.turnRate * lerp(AI.cornerMarginMin, AI.cornerMarginMax, skillT);
+    const fade = (1 - KART.turnAtTopSpeed) / KART.maxSpeed;
+    const decel = stats.brake * AI.brakeMargin;
+    let best = Infinity;
+    for (let d = 0; d <= AI.planAhead; d += 8) {
+      // The racing line cuts corners, so the curve it actually drives is a bit gentler.
+      const k = Math.abs(track.curvatureAt(kart.s + d)) * 0.8;
+      if (k < 1e-4) continue;
+      // v * k = t0 * (1 - fade * v)  =>  v = t0 / (k + t0 * fade)
+      const corner = t0 / (k + t0 * fade);
+      best = Math.min(best, Math.sqrt(corner * corner + 2 * decel * d));
+    }
+    return best;
+  }
+
+  /**
+   * If the line it's driving would clip a tyre stack coming up (or a cluster of them),
+   * move laneTarget to the nearest gap that's still on the road. Returns how far ahead
+   * the stack is if it's steering round one, else null.
+   */
+  planAroundSolids(kart, race, range) {
+    const first = solidAhead(race, kart, range);
+    if (!first) return null;
+    const track = race.track;
+    const line = track.racingLineAt(first.s) * this.skill;
+    const planned = line + this.laneTarget;
+    // Every stack within a short stretch of the first one blocks a band across the road.
+    const bands = [];
+    for (const e of race.entities) {
+      if (!e.solid || Math.abs(loopDelta(first.s, e.s, track.length)) > 30) continue;
+      const clear = kart.radius + e.radius + 6;
+      bands.push([e.lateral - clear, e.lateral + clear]);
+    }
+    const blocked = (v) => bands.some(([a, b]) => v > a && v < b);
+    const gap = loopDelta(kart.s, first.s, track.length);
+    // Already steering for a gap: keep aiming at it until the stack is passed.
+    if (!blocked(planned)) return blocked(kart.lateral) || Math.abs(this.lane - this.laneTarget) > 2 ? gap : null;
+    const edge = track.halfWidth - 4;
+    const gaps = bands.flat().filter((v) => Math.abs(v) <= edge && !blocked(v));
+    if (!gaps.length) return null;
+    const pick = gaps.reduce((a, b) => (Math.abs(a - planned) <= Math.abs(b - planned) ? a : b));
+    this.laneTarget = pick - line;
+    return gap;
   }
 
   /** A kart a short way ahead in roughly the same lane, going slower. */

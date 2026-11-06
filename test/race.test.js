@@ -10,6 +10,8 @@ const DT = 1 / 60;
 function soloRace(opts = {}) {
   const input = { throttle: 0, brake: 0, steer: 0, useItem: false };
   const race = new Race({ track: meadow, seed: 1, rivals: 0, countdown: 0, humanInput: input, ...opts });
+  // Driving tests are about the physics, so take the tyre stacks off the track.
+  race.entities = race.entities.filter((e) => !e.solid);
   return { race, input, kart: race.player };
 }
 
@@ -37,8 +39,9 @@ test('nobody moves during the countdown', () => {
 
 test('holding the throttle on a straight reaches top speed and no more', () => {
   const { race, input, kart } = soloRace();
+  place(race, kart, 250);
   input.throttle = 1;
-  for (let i = 0; i < 180; i++) race.step(DT);
+  for (let i = 0; i < 100; i++) race.step(DT);
   assert.ok(kart.forwardSpeed > kart.base.maxSpeed * 0.95, `speed ${kart.forwardSpeed}`);
   assert.ok(kart.forwardSpeed <= kart.base.maxSpeed + 0.01);
 });

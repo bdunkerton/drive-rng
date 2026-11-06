@@ -7,10 +7,11 @@ import { drawText } from './font.js';
 const BOX_COLOURS = ['#f05a4a', '#f2c14b', '#5ec46a', '#4aa8f0', '#b07af0'];
 
 export const ENTITY_ART = {
-  'item-box'(g, box, sx, sy) {
-    if (!box.active) {
+  'item-box'(g, box, sx, sy, view) {
+    // Boxes are per kart: draw it as the kart we're watching sees it.
+    if (!box.availableTo(view.viewer, view.time)) {
       // A faint sparkle while it respawns.
-      if (box.respawnIn < 0.6 && Math.floor(box.phase * 4) % 2 === 0) {
+      if (box.respawnIn(view.viewer, view.time) < 0.6 && Math.floor(box.phase * 4) % 2 === 0) {
         g.fillStyle = PAL.white;
         g.fillRect(sx, sy, 1, 1);
       }
@@ -67,9 +68,45 @@ ENTITY_ART.hole = (g, h, sx, sy) => {
   }
 };
 
-export function drawEntity(g, entity, sx, sy) {
+/** @param {{ viewer: any, time: number }} view  the kart the camera follows, and the race time */
+// A stack of tyres, seen from above: a black ring with a red-and-white band so it reads
+// against the road, and a hole in the middle. It wobbles when it's been shoved.
+const TYRE_ROWS = [
+  '...kkkkk...',
+  '..kttttttk.',
+  '.kttwwwwttk',
+  'kttwrrrrwttk',
+  'ktwr...rwtk',
+  'ktwr...rwtk',
+  'ktwr...rwtk',
+  'kttwrrrrwttk',
+  '.kttwwwwttk',
+  '..kttttttk.',
+  '...kkkkk...',
+];
+const TYRE_COLOURS = { k: '#0e0d12', t: '#34333b', w: '#ece7db', r: '#c9443a' };
+
+ENTITY_ART.tires = (g, stack, sx, sy) => {
+  const wobble = stack.moving ? Math.round(Math.sin(stack.spin * 6)) : 0;
+  g.fillStyle = PAL.shadow;
+  g.fillRect(sx - 5, sy + 4, 12, 3);
+  for (let y = 0; y < TYRE_ROWS.length; y++) {
+    const row = TYRE_ROWS[y];
+    for (let x = 0; x < row.length; x++) {
+      const col = TYRE_COLOURS[row[x]];
+      if (!col) continue;
+      g.fillStyle = col;
+      g.fillRect(sx - 5 + x + wobble, sy - 6 + y, 1, 1);
+    }
+  }
+  // Highlight on the top tyre.
+  g.fillStyle = '#5a5964';
+  g.fillRect(sx - 2 + wobble, sy - 5, 3, 1);
+};
+
+export function drawEntity(g, entity, sx, sy, view = { viewer: null, time: 0 }) {
   const draw = ENTITY_ART[entity.kind];
-  if (draw) draw(g, entity, sx, sy);
+  if (draw) draw(g, entity, sx, sy, view);
   else {
     // Unknown kinds still show up, as a magenta blob, so nothing is invisible by accident.
     g.fillStyle = '#ff00ff';
