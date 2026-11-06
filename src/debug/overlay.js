@@ -1,6 +1,6 @@
 // Developer overlay, toggled with the backtick key (`) or ?debug=1 in the URL.
 // Shows the centreline, racing line, fence, AI aim points, hook lines and live
-// numbers, and lists every registered powerup: press its number (1-8) to put it in
+// numbers, and lists every registered powerup: press its key (1-9, 0, - = [ ] ; ') to put it in
 // your hand. Press two numbers and fuse (F) to try any fusion: the first number is the
 // motion, the second the field. The same number twice makes a MEGA.
 
@@ -50,6 +50,8 @@ export function drawDebugWorld(g, race, camX, camY) {
   }
 }
 
+const DEBUG_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '[', ']', ';', "'"];
+
 export function drawDebugPanel(g, race, fps) {
   const p = race.player ?? race.order[0];
   const status = [
@@ -61,7 +63,7 @@ export function drawDebugPanel(g, race, fps) {
     `HAND ${p.items.length}/${p.slots}  ${p.items.map(itemName).join(', ') || '-'}`,
     'GIVE ITEM:',
   ];
-  const defs = powerups.list().slice(0, 10);
+  const defs = powerups.list().slice(0, 16);
   const rows = Math.ceil(defs.length / 2);
   const x = 6;
   const y = VIEW.height - 16 - (status.length + rows) * 7;
@@ -71,7 +73,7 @@ export function drawDebugPanel(g, race, fps) {
   defs.forEach((d, i) => {
     const col = i < rows ? 0 : 1;
     const row = i % rows;
-    drawText(g, `${(i + 1) % 10} ${d.name}`, x + col * 62, y + (status.length + row) * 7, { color: '#00e5ff', shadow: null });
+    drawText(g, `${DEBUG_KEYS[i]} ${d.name}`, x + col * 62, y + (status.length + row) * 7, { color: '#00e5ff', shadow: null });
   });
 }
 

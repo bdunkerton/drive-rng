@@ -57,7 +57,8 @@ export class ItemBox {
   }
 
   onKartTouch(kart, race) {
-    if (!this.availableTo(kart, race.time)) return;
+    // race.itemsOff: the combo lab turns pickups off while it measures one item.
+    if (race.itemsOff || !this.availableTo(kart, race.time)) return;
     this.backAt.set(kart.id, race.time + ITEMS.boxRespawnSeconds);
     race.events.emit('item:box', { kart, box: this });
     // A full hand (or a finished kart) just smashes the box.

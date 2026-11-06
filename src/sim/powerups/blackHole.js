@@ -11,7 +11,7 @@ export const BLACK_HOLE = {
   duration: 0.85,
   yank: 600,            // pixels per second per second toward the hole
   aim: 7,               // radians per second the hole turns you to face it
-  maxPull: 230,         // the yank stops adding speed past this
+  maxPull: 200,         // the yank stops adding speed past this
   popKick: 45,
   popSeconds: 0.6,
   gravityRadius: 90,
@@ -22,10 +22,13 @@ export const fall = {
   name: 'FALL',
   tags: ['boost', 'fall'],
   duration: (p) => BLACK_HOLE.duration * (1 + 0.25 * (p - 1)),
-  modifiers: () => ({ maxSpeed: 1.75, accel: 4, grip: 1.5 }),
+  modifiers: () => ({ maxSpeed: 1.5, accel: 3, grip: 1.5 }),
   start(m) {
     const k = m.kart;
-    const p = m.race.track.pointAt(k.s + BLACK_HOLE.ahead * Math.sqrt(m.power), k.lateral * 0.4);
+    // In a bend the hole opens closer, so the straight line to it stays on the road.
+    const bend = m.race.track.bendBetween(k.s, k.s + BLACK_HOLE.ahead);
+    const ahead = (BLACK_HOLE.ahead * Math.sqrt(m.power)) / (1 + bend * 1.5);
+    const p = m.race.track.pointAt(k.s + ahead, k.lateral * 0.4);
     m.data.hole = { x: p.x, y: p.y };
     m.race.spawn(new HoleMark({ owner: k, x: p.x, y: p.y, life: m.effect.duration + 0.35, size: Math.sqrt(m.power) }));
     m.race.events.emit('sfx', { name: 'hole', kart: k });
@@ -40,9 +43,13 @@ export const fall = {
   },
   end(m) {
     const k = m.kart;
-    // You come out facing down the road.
-    k.heading = m.race.track.headingAt(k.s);
-    speedBurst(k, m.race, BLACK_HOLE.popSeconds * Math.sqrt(m.power), 1.45, BLACK_HOLE.popKick * m.power);
+    // You come out facing, and going, down the road.
+    const dir = m.race.track.headingAt(k.s);
+    const v = k.speed;
+    k.heading = dir;
+    k.vx = Math.cos(dir) * v;
+    k.vy = Math.sin(dir) * v;
+    speedBurst(k, m.race, BLACK_HOLE.popSeconds * Math.sqrt(m.power), 1.3, BLACK_HOLE.popKick * m.power);
     m.race.events.emit('hole:pop', { kart: k, x: m.data.hole.x, y: m.data.hole.y });
     m.race.events.emit('sfx', { name: 'boost', kart: k });
   },
@@ -67,6 +74,8 @@ powerups.register({
   icon: 'black-hole',
   weight: 1,
   opposite: 'spring',
+  // You come out of the hole fast: open it where there's road after it, not before a corner.
+  aiWants: ({ race, kart }) => race.track.bendBetween(kart.s, kart.s + 300) < 0.6,
   motion: fall,
   field: gravity,
 });

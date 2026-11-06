@@ -60,6 +60,18 @@ export class RaceView {
       if (kart === this.target) this.shake = Math.min(4, impact / 25);
     });
     on('tires:shove', ({ tires }) => this.particles.burst(tires.x, tires.y, 8, ['#34333b', '#8a6a3a'], 40, 0.35));
+    on('blink', ({ kart, from, to }) => {
+      this.particles.burst(from.x, from.y, 14, ['#5fd8f0', PAL.white], 40, 0.4);
+      this.particles.burst(to.x, to.y, 14, ['#5fd8f0', PAL.white], 40, 0.4);
+      for (let i = 0; i <= 10; i++) this.particles.emit({ x: lerp(from.x, to.x, i / 10), y: lerp(from.y, to.y, i / 10), life: 0.2 + i * 0.02, colour: '#5fd8f0', drag: 6 });
+    });
+    on('moonwalk', ({ kart }) => this.particles.burst(kart.x, kart.y, 10, ['#f2d14b', PAL.white], 35, 0.4));
+    on('flipped', ({ kart }) => this.particles.burst(kart.x, kart.y, 8, ['#f2d14b', '#f07ab8'], 35, 0.35));
+    on('oil:slip', ({ kart }) => this.particles.burst(kart.x, kart.y, 6, ['#1a1820', '#6b5a9c'], 30, 0.35));
+    on('ramp:launch', ({ kart }) => this.particles.burst(kart.x, kart.y, 10, ['#c08a4a', '#f2d14b'], 40, 0.35));
+    on('magnet:grab', ({ kart, box }) => {
+      for (let i = 0; i <= 8; i++) this.particles.emit({ x: lerp(box.x, kart.x, i / 8), y: lerp(box.y, kart.y, i / 8), life: 0.15 + (i / 8) * 0.25, colour: i % 2 ? PAL.silver : '#e0463a', drag: 6 });
+    });
     on('hit', ({ kart }) => {
       this.particles.burst(kart.x, kart.y, 14, [PAL.white, PAL.boostHot, PAL.danger], 60, 0.45);
       if (kart === this.target) this.shake = 4;
@@ -117,6 +129,16 @@ export class RaceView {
         for (let i = 0; i < 3; i++) {
           this.particles.emit({ x: k.x - fx * 7, y: k.y - fy * 7, vx: -fx * 60 + (Math.random() - 0.5) * 25, vy: -fy * 60 + (Math.random() - 0.5) * 25, life: 0.25, colour: i === 0 ? PAL.white : Math.random() < 0.5 ? '#e0463a' : PAL.boostHot });
         }
+      }
+      if (k.effects.hasTag('twister')) {
+        const a = Math.random() * Math.PI * 2;
+        this.particles.emit({ x: k.x + Math.cos(a) * 8, y: k.y + Math.sin(a) * 8, vx: -Math.sin(a) * 60, vy: Math.cos(a) * 60, life: 0.25, colour: Math.random() < 0.5 ? '#dfe8ff' : '#8fb4d8' });
+      }
+      if (k.effects.hasTag('moonwalk') && Math.random() < 0.8) {
+        this.particles.emit({ x: k.x + fx * 6, y: k.y + fy * 6, vx: fx * 40 + (Math.random() - 0.5) * 20, vy: fy * 40 + (Math.random() - 0.5) * 20, life: 0.2, colour: Math.random() < 0.5 ? '#f2d14b' : PAL.white });
+      }
+      if (k.effects.hasTag('rails') && k.speed > 60 && Math.random() < 0.5) {
+        this.particles.emit({ x: k.x - fx * 5, y: k.y - fy * 5, life: 0.4, colour: '#f2c14b', drag: 8 });
       }
       if (k.effects.hasTag('fall') && Math.random() < 0.8) {
         this.particles.emit({ x: k.x + (Math.random() - 0.5) * 10, y: k.y + (Math.random() - 0.5) * 10, vx: -k.vx * 0.2, vy: -k.vy * 0.2, life: 0.3, colour: Math.random() < 0.5 ? '#9b52d2' : '#d29bff' });

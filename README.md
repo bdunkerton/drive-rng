@@ -1,6 +1,6 @@
 # Drive RNG
 
-A top-down pixel kart racer where the items are the point. One short track (about 20 seconds a lap), three AI rivals, tyre stacks to drive round, eight powerups, and two item slots you can fuse into something stranger. Every item helps whoever uses it; anything it does to the other karts is collateral, and that's the risk.
+A top-down pixel kart racer where the items are the point. One short track (about 20 seconds a lap), three AI rivals, tyre stacks to drive round, fourteen powerups, and two item slots you can fuse into something stranger. Every item helps whoever uses it; anything it does to the other karts is collateral, and that's the risk.
 
 Plain JavaScript in the browser. No build step and no dependencies.
 
@@ -62,16 +62,22 @@ Every powerup has two halves: a **motion** (how it moves you) and a **field** (w
 | 6 | **BLACK HOLE** | FALL: a hole opens ahead, pulls you in and pops you out fast | GRAVITY: drags nearby karts in toward you |
 | 7 | **BULK** | CHARGE: huge and heavy; nothing spins you out or pops you | SHOVE: anyone who touches you bounces off hard |
 | 8 | **BUMPER** | RICOCHET: a springy bubble; every bump kicks you forward | REPEL: pushes nearby karts away |
+| 9 | **MAGNET** | DRAFT: tuck in behind a kart ahead for a big tow | COLLECT: item boxes near you fly to you |
+| 0 | **BLINK** | WARP: teleport a short way up the road, keeping your speed | AFTERIMAGE: leaves a solid copy of you behind |
+| - | **MOONWALK** | MOONWALK: spin round and thrust backwards, faster than you can drive (steering reversed) | FLIPSIDE: karts near you get spun round too |
+| = | **TWISTER** | SPIN: an unstoppable spinning top | WHIRL: flings nearby karts round you |
+| [ | **GRIP** | RAILS: no sliding and sharp steering at any speed | SLICK: leaves oil that takes others' grip away |
+| ] | **RAMP** | LAUNCH: a long, fast jump off a ramp | RAMPS: leaves ramps that launch whoever follows |
 
-The numbers are the debug keys (see below).
+The first column is the debug key (see below).
 
 ### Fusing
 
 Press **F** to fuse your front two items into one. Before you press it, the HUD shows what you'd get (`F FUSE: WHITE HOLE`).
 
-- **The rule:** a fusion has the **motion of the first slot and the field of the second**. HOOK then BOOST is a hook that leaves a speed lane; BOOST then HOOK is a dash that drags karts in. Every one of the 56 pairs works, with no table to write. Press **C** to swap the order before you fuse.
+- **The rule:** a fusion has the **motion of the first slot and the field of the second**. HOOK then BOOST is a hook that leaves a speed lane; BOOST then HOOK is a dash that drags karts in. Every one of the 182 pairs works, with no table to write. Press **C** to swap the order before you fuse.
 - **The same item twice** is a **MEGA**: its own motion and field at double strength.
-- **Opposites cancel** and **FIZZLE**: HOOK and BUMPER, BULK and GHOST, BLACK HOLE and SPRING. You get the first item alone at half strength and a sad horn. Fizzles are learnable, not bad luck.
+- **Opposites cancel** and **FIZZLE**: HOOK and BUMPER, BULK and GHOST, BLACK HOLE and SPRING, BLINK and MOONWALK, GRIP and TWISTER. You get the first item alone at half strength and a sad horn. Fizzles are learnable, not bad luck.
 - **One Mega or Fusion in ten comes out WILD**: stronger, with a rainbow frame and a moment of slow motion when you use it. That's the only random part of fusing, and it only ever makes things better.
 - A fused item can't be fused again.
 
@@ -107,7 +113,7 @@ Add these to the address, e.g. `http://localhost:8080/?quick=1&laps=1&seed=banan
 
 ### Debug overlay
 
-Press backtick. You'll see the track centreline (white dots), the racing line the rivals follow (cyan), the fence (red), a yellow line from each rival to the point it's aiming at, a red line for each hook, and live numbers for your kart. It also lists every powerup: press its number (1–8) to put it straight into your hand, ready to use. Press two numbers then F to try any fusion: the first number is the motion, the second the field.
+Press backtick. You'll see the track centreline (white dots), the racing line the rivals follow (cyan), the fence (red), a yellow line from each rival to the point it's aiming at, a red line for each hook, and live numbers for your kart. It also lists every powerup: press its key (1–9, 0, then - = [ ] for the rest) to put it straight into your hand, ready to use. Press two numbers then F to try any fusion: the first number is the motion, the second the field.
 
 ## Check it without playing
 
@@ -117,7 +123,13 @@ npm run sim                       # one AI-only race, seed 1, printed as a table
 npm run sim -- --seed 42 --laps 1
 npm run sim -- --runs 50          # 50 races: wins, average times, items used, fusions, fizzles, wilds, blasts, pops
 npm run sim -- --karts 8
+npm run lab                       # the combo lab: every item and fusion in 24 race moments each (a few minutes)
+npm run lab -- --with grip --moments 60 --out grip.json
 ```
+
+**The combo lab** (`scripts/lab.mjs`) drops each item into real race moments (an all-AI race runs to a chosen second, the kart in 4th gets the item) and compares with the same seeded race without it: places gained, how often it gains 2+ places, how often it leaves you worse, how many karts it touched, airtime, time spent driving backwards. The top of the file explains each number.
+
+**Replays:** `tools/replay.html?seed=1003&at=12.4&combo=hook+boost` replays one lab moment with the camera on the kart that got the item. `tools/record_clips.py` renders lab moments to video, side by side with the race without the item (needs Python Playwright, Chrome and ffmpeg).
 
 The simulator runs exactly the same race code as the game, with every kart driven by the AI.
 

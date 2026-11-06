@@ -68,8 +68,8 @@ export function speedBurst(kart, race, seconds, maxSpeed = 1.35, kick = 0) {
       modifiers: { maxSpeed, accel: 2.5 },
       tags: ['boost'],
       onTick(k) {
-        if (!k.effects.hasTag('air')) k.controls.throttle = Math.max(k.controls.throttle, 1);
-        k.controls.brake = 0;
+        // Full throttle unless you're braking: you can still brake for a corner.
+        if (!k.effects.hasTag('air') && !k.controls.brake) k.controls.throttle = 1;
       },
     },
     race,
@@ -86,7 +86,7 @@ export const untouchable = (kart) => kart.effects.hasTag('air') || kart.effects.
  */
 export function popKart(target, race, { by = null, power = 1 } = {}) {
   if (untouchable(target)) return 'missed';
-  if (target.effects.hasTag('giant') || target.effects.hasTag('ride')) return 'shrugged';
+  if (target.effects.hasTag('giant') || target.effects.hasTag('ride') || target.effects.hasTag('armour')) return 'shrugged';
   if (target.effects.hasTag('bumper')) {
     target.kick(30);
     race.events.emit('ricochet', { kart: target, by });
@@ -133,10 +133,9 @@ export function blastAt(race, x, y, { owner = null, radius = 55, push = 170, spi
   return hit;
 }
 
-/** Force the throttle on and the brake off (boosts and rides drive you forward). */
+/** Boosts and rides drive you forward: full throttle, unless you're braking for a corner. */
 export function floorIt(kart) {
-  kart.controls.throttle = 1;
-  kart.controls.brake = 0;
+  if (!kart.controls.brake) kart.controls.throttle = 1;
 }
 
 /**

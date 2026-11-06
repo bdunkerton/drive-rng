@@ -31,7 +31,7 @@ export function spinoutEffect() {
 export function hitKart(target, race, { by = null, kind = 'hit' } = {}) {
   if (target.effects.has('spinout')) return 'already';
   if (target.effects.hasTag('air') || target.effects.hasTag('phase')) return 'missed';
-  if (target.effects.hasTag('giant') || target.effects.hasTag('ride')) {
+  if (target.effects.hasTag('giant') || target.effects.hasTag('ride') || target.effects.hasTag('armour')) {
     race.events.emit('hit:shrug', { kart: target, by, kind });
     return 'shrugged';
   }

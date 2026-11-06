@@ -44,13 +44,17 @@ test('a BULK giant shoves a tyre stack out of the way', () => {
 });
 
 test('a SPRING jump flies over a tyre stack', () => {
-  const { race, input, me, stack } = stackAhead();
+  const t = setup({ karts: 1 });
+  const { race, input, me } = t;
+  place(race, me, 150);
+  const stack = race.spawn(new TireStack(race.track, 400, 0));
+  input.throttle = 1;
   const hits = [];
   race.events.on('tires:hit', (e) => hits.push(e));
-  steps(race, 0.15);
+  steps(race, 3, () => me.progress >= 350);
   give(me, 'spring');
   press(race, input, 'useItem');
-  steps(race, 0.6);
+  steps(race, 0.7);
   assert.equal(hits.length, 0);
   assert.ok(me.progress > stack.s, 'did not clear the stack');
 });
@@ -58,7 +62,7 @@ test('a SPRING jump flies over a tyre stack', () => {
 test('rivals steer round the tyre stacks and still finish', () => {
   let hits = 0;
   for (const seed of [1, 2, 3, 4, 5]) {
-    const { timedOut } = simulateRace({ seed, laps: 3, karts: 4, maxSeconds: 200, onSetup: (r) => r.events.on('tires:hit', () => hits++) });
+    const { timedOut } = simulateRace({ seed, laps: 3, karts: 4, maxSeconds: 200, onSetup: (r) => r.events.on('tires:hit', (e) => e.tires.kind === 'tires' && hits++) });
     assert.equal(timedOut, false, `seed ${seed} timed out`);
   }
   // Some clipping is fine; driving into them every lap is not.

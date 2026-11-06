@@ -68,7 +68,9 @@ export class Hud {
     const p = this.race.player;
     if (p && this.race.phase === 'racing' && !p.finished) {
       const facing = Math.abs(angleDiff(p.heading, this.race.track.headingAt(p.s)));
-      const backwards = facing > 1.9 && p.speed > 15;
+      // Facing backwards on purpose (MOONWALK) or spinning (TWISTER) isn't the wrong way.
+      const meant = p.effects.hasTag('moonwalk') || p.effects.hasTag('twister');
+      const backwards = !meant && facing > 1.9 && p.speed > 15;
       this.wrongWayFor = backwards ? this.wrongWayFor + dt : Math.max(0, this.wrongWayFor - dt * 2);
     } else this.wrongWayFor = 0;
   }
@@ -182,7 +184,9 @@ export class Hud {
     const x = 6;
     const y = VIEW.height - 10;
     const w = 50;
-    const frac = Math.max(0, kart.forwardSpeed) / kart.base.maxSpeed;
+    // Moonwalking, you're going forward while facing backwards: show the speed anyway.
+    const speed = kart.effects.hasTag('moonwalk') || kart.effects.hasTag('scripted') ? kart.speed : Math.max(0, kart.forwardSpeed);
+    const frac = speed / kart.base.maxSpeed;
     g.fillStyle = PAL.hudBg;
     g.fillRect(x - 1, y - 1, w + 2, 6);
     g.fillStyle = '#5ec46a';
@@ -191,7 +195,7 @@ export class Hud {
       g.fillStyle = PAL.boost;
       g.fillRect(x + w - Math.min(w, Math.round(w * (frac - 1))), y, Math.min(w, Math.round(w * (frac - 1))), 4);
     }
-    drawText(g, `${Math.round(Math.max(0, kart.forwardSpeed))}`, x + w + 4, y - 1, { color: PAL.white });
+    drawText(g, `${Math.round(speed)}`, x + w + 4, y - 1, { color: PAL.white });
   }
 
   drawMinimap(g) {

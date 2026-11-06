@@ -10,8 +10,10 @@ import { hasIcon } from '../src/render/icons.js';
 import { hitKart } from '../src/sim/hits.js';
 import { simulateRace } from '../src/sim/headless.js';
 import { FUSION } from '../src/config.js';
+import { ItemBox } from '../src/sim/entities.js';
+import { angleDiff } from '../src/core/math.js';
 
-const IDS = ['boost', 'spring', 'hook', 'rocket', 'ghost', 'black-hole', 'bulk', 'bumper'];
+const IDS = ['boost', 'spring', 'hook', 'rocket', 'ghost', 'black-hole', 'bulk', 'bumper', 'magnet', 'blink', 'moonwalk', 'twister', 'grip', 'ramp'];
 const moveOf = (kart) => kart.effects.active.find((e) => e.id.startsWith('move:'));
 
 // ---- The registry ---------------------------------------------------------------
@@ -37,7 +39,7 @@ test('rolls are weighted and can depend on the race situation', () => {
   assert.deepEqual([...seen].sort(), ['common', 'leader-only']);
 });
 
-test('there are eight powerups, each with an icon and HUD-safe names', () => {
+test('there are fourteen powerups, each with an icon and HUD-safe names', () => {
   const defs = powerups.list();
   assert.deepEqual(defs.map((d) => d.id), IDS);
   for (const d of defs) {
@@ -46,10 +48,10 @@ test('there are eight powerups, each with an icon and HUD-safe names', () => {
   }
 });
 
-test('three pairs of opposites, and they go both ways', () => {
+test('five pairs of opposites, and they go both ways', () => {
   const pairs = [];
   for (const a of IDS) for (const b of IDS) if (a < b && powerups.areOpposites(a, b)) pairs.push(`${a}/${b}`);
-  assert.deepEqual(pairs.sort(), ['black-hole/spring', 'bulk/ghost', 'bumper/hook']);
+  assert.deepEqual(pairs.sort(), ['black-hole/spring', 'blink/moonwalk', 'bulk/ghost', 'bumper/hook', 'grip/twister']);
   for (const d of powerups.list()) if (d.opposite) assert.equal(powerups.get(d.opposite).opposite, d.id);
 });
 
@@ -327,6 +329,75 @@ test('METEOR: jump, then land with a blast', () => {
   assert.ok(me.effects.hasTag('air'));
   assert.ok(steps(race, 1.5, () => blasts.length > 0));
   assert.equal(me.effects.hasTag('air'), false);
+});
+
+test('MAGNET pulls nearby item boxes to you', () => {
+  const { race, input, me } = setup({ karts: 1 });
+  place(race, me, 300);
+  const p = race.track.pointAt(340, 15);
+  race.spawn(new ItemBox(p.x, p.y));
+  give(me, 'magnet');
+  press(race, input, 'useItem');
+  steps(race, 0.1);
+  assert.equal(me.items.length, 1);
+});
+
+test('BLINK teleports you up the road and leaves a solid copy behind', () => {
+  const { race, input, me } = setup({ karts: 1 });
+  place(race, me, 300);
+  give(me, 'blink');
+  press(race, input, 'useItem');
+  assert.ok(me.progress > 360, `only at ${me.progress}`);
+  assert.ok(race.entities.some((e) => e.kind === 'decoy' && e.solid));
+});
+
+test('MOONWALK: you face backwards and go faster than you can drive forwards, then turn back', () => {
+  const { race, input, me } = setup({ karts: 1 });
+  place(race, me, 250);
+  input.throttle = 1;
+  steps(race, 1.2);
+  const heading = race.track.headingAt(me.s);
+  give(me, 'moonwalk');
+  press(race, input, 'useItem');
+  steps(race, 0.8);
+  assert.ok(Math.abs(angleDiff(me.heading, heading + Math.PI)) < 0.6, 'not facing backwards');
+  assert.ok(me.speed > me.base.maxSpeed * 1.05, `speed ${me.speed}`);
+  steps(race, 2);
+  assert.ok(Math.abs(angleDiff(me.heading, race.track.headingAt(me.s))) < 1, 'did not turn back round');
+});
+
+test('TWISTER: nothing spins you out, and nearby karts get flung', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  place(race, others[0], 320, 15);
+  give(me, 'twister');
+  press(race, input, 'useItem');
+  assert.equal(hitKart(me, race), 'shrugged');
+  steps(race, 0.4);
+  assert.ok(Math.hypot(others[0].vx, others[0].vy) > 30);
+});
+
+test('GRIP: no sliding and sharp steering at speed, with oil left behind', () => {
+  const { race, input, me } = setup({ karts: 1 });
+  place(race, me, 300);
+  give(me, 'grip');
+  press(race, input, 'useItem');
+  assert.ok(me.effects.hasTag('rails'));
+  steps(race, 0.5);
+  assert.ok(race.entities.some((e) => e.kind === 'oil'));
+});
+
+test('RAMP: a long jump, leaving a ramp that launches whoever follows', () => {
+  const { race, input, me, others } = setup({ karts: 2 });
+  place(race, me, 300);
+  give(me, 'ramp');
+  press(race, input, 'useItem');
+  assert.ok(me.effects.hasTag('air'));
+  const ramp = race.entities.find((e) => e.kind === 'ramp');
+  assert.ok(ramp);
+  place(race, others[0], race.track.project(ramp.x, ramp.y).s - 2, race.track.project(ramp.x, ramp.y).lateral);
+  race.step(DT);
+  assert.ok(others[0].effects.has('ramped'));
 });
 
 // ---- Rivals ---------------------------------------------------------------------------

@@ -30,12 +30,16 @@ export default {
   // Rows of item boxes, as a fraction of the lap from the start line. Every kart can
   // take every box (they respawn for each kart separately), so the pack isn't starved.
   itemRows: [
-    { at: 0.12, boxes: 4 },
+    { at: 0.04, boxes: 4 },
+    { at: 0.15, boxes: 4 },
     { at: 0.26, boxes: 4 },
-    { at: 0.40, boxes: 4 },
-    { at: 0.55, boxes: 4 },
-    { at: 0.70, boxes: 4 },
-    { at: 0.90, boxes: 4 },
+    { at: 0.36, boxes: 4 },
+    { at: 0.46, boxes: 4 },
+    { at: 0.56, boxes: 4 },
+    { at: 0.64, boxes: 4 },
+    { at: 0.74, boxes: 4 },
+    { at: 0.82, boxes: 4 },
+    { at: 0.92, boxes: 4 },
   ],
   // Stacks of tyres: solid for normal karts, but a BULK giant can shove them about.
   // `at` is a fraction of the lap, `lateral` is pixels right of the centreline.

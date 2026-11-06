@@ -17,6 +17,8 @@ export const BINDINGS = {
 };
 
 const GAME_KEYS = new Set(Object.values(BINDINGS).flat());
+// Debug item keys after 1-9 and 0.
+const EXTRA_DIGITS = ['Minus', 'Equal', 'BracketLeft', 'BracketRight', 'Semicolon', 'Quote'];
 
 export class Input {
   constructor(target = window) {
@@ -24,7 +26,7 @@ export class Input {
     this.pressed = new Set();
     this.onAnyKey = null;
     target.addEventListener('keydown', (e) => {
-      if (GAME_KEYS.has(e.code) || /^Digit[0-9]$/.test(e.code)) e.preventDefault();
+      if (GAME_KEYS.has(e.code) || /^Digit[0-9]$/.test(e.code) || EXTRA_DIGITS.includes(e.code)) e.preventDefault();
       if (!e.repeat) this.pressed.add(e.code);
       this.down.add(e.code);
       this.onAnyKey?.();
@@ -42,11 +44,12 @@ export class Input {
     return BINDINGS[action].some((code) => this.pressed.has(code));
   }
 
-  /** 1-10 if a number key was pressed this frame (0 counts as 10), else null. */
+  /** 1-16 if a debug item key was pressed this frame (1-9, then 0, - = [ ] ; '), else null. */
   digitPressed() {
     for (let i = 1; i <= 9; i++) if (this.pressed.has(`Digit${i}`)) return i;
     if (this.pressed.has('Digit0')) return 10;
-    return null;
+    const extra = EXTRA_DIGITS.findIndex((code) => this.pressed.has(code));
+    return extra >= 0 ? 11 + extra : null;
   }
 
   endFrame() {

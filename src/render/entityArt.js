@@ -3,6 +3,7 @@
 
 import { PAL } from './palette.js';
 import { drawText } from './font.js';
+import { kartFrame, KART_SPRITE_SIZE } from './sprites.js';
 
 const BOX_COLOURS = ['#f05a4a', '#f2c14b', '#5ec46a', '#4aa8f0', '#b07af0'];
 
@@ -102,6 +103,53 @@ ENTITY_ART.tires = (g, stack, sx, sy) => {
   // Highlight on the top tyre.
   g.fillStyle = '#5a5964';
   g.fillRect(sx - 2 + wobble, sy - 5, 3, 1);
+};
+
+// An oil slick: a dark, glossy puddle that fades out.
+ENTITY_ART.oil = (g, o, sx, sy) => {
+  const left = 1 - o.age / o.life;
+  g.globalAlpha = Math.min(1, left * 2) * 0.85;
+  const r = Math.round(5 * o.size);
+  for (let y = -r; y <= r; y++) {
+    const w = Math.round(Math.sqrt(r * r - y * y) * (1 + 0.25 * Math.sin(y + o.seed)));
+    g.fillStyle = '#2a2140';
+    g.fillRect(sx - w, sy + y, w * 2 + 1, 1);
+  }
+  g.fillStyle = '#6b5a9c';
+  g.fillRect(sx - 2, sy - 2, 2, 1);
+  g.fillStyle = '#3c9fe0';
+  g.fillRect(sx + 1, sy + 1, 2, 1);
+  g.globalAlpha = 1;
+};
+
+// A launch ramp: a wooden wedge pointing the way it was dropped, with yellow stripes.
+ENTITY_ART.ramp = (g, r, sx, sy) => {
+  const left = 1 - r.age / r.life;
+  if (left < 0.25 && Math.floor(r.age * 10) % 2) return;
+  const fx = Math.cos(r.angle);
+  const fy = Math.sin(r.angle);
+  const px = -fy;
+  const py = fx;
+  for (let a = -4; a <= 4; a++) {
+    for (let b = -5; b <= 5; b++) {
+      const shade = (a + 4) / 8;
+      g.fillStyle = b === -5 || b === 5 ? '#5a3b22' : a % 3 === 0 ? '#f2d14b' : shade > 0.6 ? '#c08a4a' : '#8a6a3a';
+      g.fillRect(Math.round(sx + fx * a + px * b * 0.8), Math.round(sy + fy * a + py * b * 0.8), 1, 1);
+    }
+  }
+};
+
+// BLINK's afterimage: a see-through, flickering copy of the kart.
+ENTITY_ART.decoy = (g, d, sx, sy) => {
+  if (d.life - d.age < 0.6 && Math.floor(d.age * 12) % 2) return;
+  g.globalAlpha = 0.55;
+  g.drawImage(kartFrame(d.color, d.heading), sx - Math.floor(KART_SPRITE_SIZE / 2), sy - Math.floor(KART_SPRITE_SIZE / 2));
+  g.globalAlpha = 1;
+  g.fillStyle = '#5fd8f0';
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + d.age * 4;
+    g.fillRect(Math.round(sx + Math.cos(a) * 7), Math.round(sy + Math.sin(a) * 7), 1, 1);
+  }
 };
 
 export function drawEntity(g, entity, sx, sy, view = { viewer: null, time: 0 }) {

@@ -82,6 +82,8 @@ export function resolveSolids(race) {
     if (!e.solid) continue;
     for (const kart of race.karts) {
       if (kart.effects.hasTag('air') || kart.effects.hasTag('phase')) continue;
+      // A kart can drive out of its own afterimage.
+      if (e.owner === kart && e.age < 1) continue;
       const dx = kart.x - e.x;
       const dy = kart.y - e.y;
       const r = kart.radius + e.radius;
@@ -145,4 +147,27 @@ export function solidAhead(race, kart, range) {
     }
   }
   return best;
+}
+
+/**
+ * An afterimage left by BLINK: a solid copy of the kart where it was, for a couple of
+ * seconds. Karts behind bounce off it like a tyre stack. Giants shove it.
+ */
+export class Decoy extends TireStack {
+  constructor(track, owner, s, lateral, life = 2.5) {
+    super(track, s, lateral);
+    this.kind = 'decoy';
+    this.owner = owner;
+    this.color = owner.color;
+    this.heading = owner.heading;
+    this.radius = owner.base.radius + 1;
+    this.life = life;
+    this.age = 0;
+  }
+
+  update(dt, race) {
+    this.age += dt;
+    if (this.age > this.life) this.alive = false;
+    super.update(dt, race);
+  }
 }

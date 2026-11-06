@@ -7,10 +7,10 @@ import { powerups } from './registry.js';
 import { kartsNear, popKart, onceEach } from './kit.js';
 
 export const SPRING = {
-  duration: 0.75,
+  duration: 0.6,
   height: 12,
-  kick: 40,
-  airSpeed: 1.3,        // you fly faster than you drive
+  kick: 30,
+  airSpeed: 1.25,       // you fly faster than you drive
   touchReach: 8,        // BOUNCE pops karts this close while the motion lasts
   landRadius: 40,       // and everyone this close when it ends
 };
@@ -20,7 +20,7 @@ export const leap = {
   tags: ['air'],
   height: SPRING.height,
   duration: (p) => SPRING.duration * (1 + 0.25 * (p - 1)),
-  modifiers: (p) => ({ maxSpeed: SPRING.airSpeed + 0.1 * (p - 1), turnRate: 0.4, grip: 0.5 }),
+  modifiers: (p) => ({ maxSpeed: SPRING.airSpeed + 0.1 * (p - 1), turnRate: 1, grip: 0.9 }),
   start(m) {
     m.kart.kick(SPRING.kick * m.power);
     m.race.events.emit('sfx', { name: 'spring', kart: m.kart });
@@ -61,7 +61,8 @@ powerups.register({
   icon: 'spring',
   weight: 1,
   opposite: 'black-hole',
-  aiWants: ({ race, kart }) => race.track.bendBetween(kart.s, kart.s + 120) < 0.8,
+  // You can't steer much in the air: jump on the straights.
+  aiWants: ({ race, kart }) => race.track.bendBetween(kart.s, kart.s + 200) < 0.4,
   motion: leap,
   field: bounce,
 });

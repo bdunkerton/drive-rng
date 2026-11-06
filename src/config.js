@@ -60,9 +60,9 @@ export const RACE = {
 export const ITEMS = {
   boxRadius: 6,
   // Boxes respawn separately for each kart, so a box the leader took is still there for you.
-  boxRespawnSeconds: 2.5,
+  boxRespawnSeconds: 1.5,
   // How long a slot "spins" after a pickup before the item can be used or fused.
-  rouletteSeconds: 0.9,
+  rouletteSeconds: 0.5,
   // Item slots every kart has. Fuse turns the front two into one.
   slots: 2,
   // In a player's first race, the first boxes always give these (their first fusion is a WHITE HOLE).
@@ -101,13 +101,13 @@ export const AI = {
   lookaheadBase: 26,
   lookaheadPerSpeed: 0.32,
   // Seconds between deciding to use an item and pressing the button.
-  itemDelayMin: 0.4,
-  itemDelayMax: 2.2,
+  itemDelayMin: 0.2,
+  itemDelayMax: 1.2,
   // Chance a rival holding two ready items fuses them instead of using the front one.
   // Rivals never fuse opposites on purpose. Lower = fewer fusions on screen.
   fuseChance: 0.22,
   // A rival that doesn't want its front item for this long cycles past it (or just uses it).
-  holdSeconds: 4,
+  holdSeconds: 2,
   stuckSeconds: 1.4,
   reverseSeconds: 0.7,
 };

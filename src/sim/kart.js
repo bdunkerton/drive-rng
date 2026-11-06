@@ -122,7 +122,17 @@ export class Kart {
  * @param {{ maxSpeed: number, drag: number }} surface multipliers for the ground under the kart
  */
 export function stepKart(kart, dt, surface) {
+  // Some motions (TWISTER) set the velocity themselves: just move.
+  if (kart.effects.hasTag('scripted')) {
+    kart.x += kart.vx * dt;
+    kart.y += kart.vy * dt;
+    return;
+  }
   const st = kart.stats();
+  // GRIP's rails: no sliding, and the steering doesn't get heavy at speed.
+  const rails = kart.effects.hasTag('rails');
+  // MOONWALK: facing backwards, thrusting the way you're going.
+  const moon = kart.effects.hasTag('moonwalk');
   const c = kart.controls;
   const throttle = clamp(c.throttle, 0, 1);
   const brake = clamp(c.brake, 0, 1);
@@ -136,7 +146,9 @@ export function stepKart(kart, dt, surface) {
 
   const topSpeed = st.maxSpeed * surface.maxSpeed;
 
-  if (brake > 0 && fwd > 1) {
+  if (moon) {
+    fwd = Math.max(-topSpeed, fwd - st.accel * 1.5 * dt);
+  } else if (brake > 0 && fwd > 1) {
     fwd = Math.max(0, fwd - st.brake * brake * dt);
   } else if (brake > 0) {
     // Holding brake when stopped reverses.
@@ -151,10 +163,11 @@ export function stepKart(kart, dt, surface) {
   // or rolling onto grass) bleeds off quickly but not instantly.
   fwd -= fwd * surface.drag * dt;
   if (fwd > topSpeed) fwd = approach(fwd, topSpeed, 190 * dt);
+  if (fwd < -topSpeed) fwd = approach(fwd, -topSpeed, 190 * dt);
 
   // Sideways slide dies out according to grip. Past a point the tyres let go and the
   // kart keeps sliding: you have to catch it.
-  const grip = Math.abs(side) > KART.slideAt ? st.grip * KART.slideGrip : st.grip;
+  const grip = !rails && Math.abs(side) > KART.slideAt ? st.grip * KART.slideGrip : st.grip;
   side *= Math.exp(-grip * dt);
 
   // Rebuild velocity from the pre-turn axes, then turn. Turning therefore creates a
@@ -164,7 +177,8 @@ export function stepKart(kart, dt, surface) {
 
   // Steering is sharpest at low-to-middling speed and gets heavier toward (and past) top speed.
   const atSpeed = Math.min(1.5, Math.abs(fwd) / KART.maxSpeed);
-  const turnScale = clamp(Math.abs(fwd) / st.turnFullAt, 0, 1) * Math.max(0.3, 1 - (1 - KART.turnAtTopSpeed) * atSpeed);
+  const fade = rails ? 1 : Math.max(0.3, 1 - (1 - KART.turnAtTopSpeed) * atSpeed);
+  const turnScale = clamp(Math.abs(fwd) / st.turnFullAt, 0, 1) * fade;
   const direction = fwd >= 0 ? 1 : -1;
   kart.heading += steer * st.turnRate * turnScale * direction * dt;
 

@@ -98,6 +98,13 @@ export class Sound {
       case 'wild': return [0, 0.06, 0.12, 0.18, 0.24, 0.3].forEach((d, i) => this.tone(523 * [1, 1.25, 1.5, 2, 2.5, 3][i], 0.12, { type: 'square', volume: 0.08, delay: d }));
       // The sad horn: two flat honks sliding down.
       case 'fizzle': return [0, 0.22].forEach((d, i) => this.tone([330, 262][i], 0.3, { type: 'sawtooth', volume: 0.09, slideTo: [300, 180][i], delay: d }));
+      case 'magnet': return this.tone(120, 0.4, { type: 'sawtooth', volume: 0.08, slideTo: 240 });
+      case 'blink': return [0, 0.04].forEach((d, i) => this.tone([1800, 600][i], 0.08, { type: 'sine', volume: 0.12, delay: d }));
+      case 'moonwalk': return [0, 0.1, 0.2].forEach((d, i) => this.tone([392, 330, 262][i], 0.1, { type: 'square', volume: 0.08, delay: d }));
+      case 'twister': return this.noise(0.8, { volume: 0.12, filter: 2200 });
+      case 'grip': return this.tone(300, 0.2, { type: 'triangle', volume: 0.1, slideTo: 600 });
+      case 'slip': return this.tone(700, 0.25, { type: 'sine', volume: 0.08, slideTo: 200 });
+      case 'grab': return this.tone(1100, 0.06, { volume: 0.06 });
       case 'wall': return this.noise(0.15, { volume: 0.25, filter: 400 });
       case 'tires':
         this.noise(0.12, { volume: 0.2, filter: 300 });
