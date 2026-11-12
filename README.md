@@ -260,3 +260,7 @@ Copy `src/tracks/meadow.js`: a list of control points (clockwise or not, the fir
 ## Tuning
 
 Almost every feel number is in `src/config.js`: top speed, acceleration, grip, how heavy the steering gets at speed (`turnAtTopSpeed`), when a slide lets go (`slideAt`, `slideGrip`), how much grass slows you, wall bounce, item box respawn time, roulette length, slots, rocket speed, spin-out length, and the AI's skill range, how hard it dares corner, and how often it fuses. Tyre stack numbers (size, how heavy a kart has to be to shove one) are at the top of `src/sim/obstacles.js`. Fusion strengths (MEGA, FUSION, FIZZLE, WILD chance and power) are in `FUSION`. Each powerup's own numbers (boost strength, hook reach, blast radius, giant size) are at the top of its file.
+
+## License
+
+[MIT](LICENSE)
