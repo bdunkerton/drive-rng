@@ -39,6 +39,7 @@ export class Race {
    * @param {object|null} [opts.humanInput]  live input object; null makes every kart AI
    * @param {number} [opts.countdown] seconds of countdown (0 to start immediately)
    * @param {string[]|null} [opts.firstPickups] the human's first item boxes give these (first race)
+   * @param {boolean} [opts.items]  false: no item boxes at all, just driving (default true)
    */
   constructor(opts) {
     this.track = opts.track instanceof Track ? opts.track : new Track(opts.track);
@@ -47,6 +48,7 @@ export class Race {
     this.events = new Events();
     this.laps = opts.laps ?? RACE.laps;
     this.humanInput = opts.humanInput ?? null;
+    this.itemsOn = opts.items ?? true;
 
     this.phase = 'countdown'; // 'countdown' | 'racing' | 'done'
     this.countdownLeft = opts.countdown ?? RACE.countdownSeconds;
@@ -81,7 +83,7 @@ export class Race {
 
     /** @type {any[]} */
     this.entities = [];
-    for (const box of placeItemBoxes(this.track)) this.spawn(box);
+    if (this.itemsOn) for (const box of placeItemBoxes(this.track)) this.spawn(box);
     for (const stack of placeObstacles(this.track)) this.spawn(stack);
     this.updatePositions();
   }

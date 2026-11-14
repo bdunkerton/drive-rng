@@ -106,7 +106,7 @@ export class Hud {
     }
 
     // Item hand, top centre, and the messages under it.
-    if (race.player) this.drawHand(g, race.player);
+    if (race.player && race.itemsOn) this.drawHand(g, race.player);
     this.drawToasts(g);
 
     // Speed bar, bottom left.
