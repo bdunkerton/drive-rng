@@ -131,3 +131,11 @@ test('the same seed replays the same AI race exactly', () => {
   const b = simulateRace({ seed: 99, laps: 1 }).results.map((r) => [r.name, r.time]);
   assert.deepEqual(a, b);
 });
+
+test('items: false leaves the track with no item boxes, and the race still finishes', () => {
+  const race = new Race({ track: meadow, seed: 5, rivals: 3, countdown: 0, humanInput: null, laps: 1, items: false });
+  assert.equal(race.entities.filter((e) => e.constructor.name === 'ItemBox').length, 0);
+  for (let i = 0; i < 60 * 120 && race.phase !== 'done'; i++) race.step(1 / 60);
+  assert.ok(race.karts.every((k) => k.items.length === 0), 'nobody picked anything up');
+  assert.ok(race.karts.some((k) => k.finished), 'someone finished');
+});

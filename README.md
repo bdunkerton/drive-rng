@@ -116,6 +116,7 @@ Add these to the address, e.g. `http://localhost:8080/?quick=1&laps=1&seed=banan
 | `seed=anything` | Fixed seed: rivals and item rolls repeat exactly (as long as you drive the same) |
 | `debug=1` | Start with the debug overlay on |
 | `tutorial=1` | First-race item boxes (BLACK HOLE, then BOOST) even if you've fused before |
+| `items=0` | No item boxes, for anyone: just the track and the driving |
 
 ### Debug overlay
 

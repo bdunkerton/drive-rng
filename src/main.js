@@ -7,6 +7,7 @@
 //   ?rivals=3    number of AI rivals (0-7)
 //   ?debug=1     start with the debug overlay on (toggle any time with the ` key)
 //   ?tutorial=1  first-race item boxes (BLACK HOLE then BOOST) even if you've fused before
+//   ?items=0     no item boxes: just the track and the driving
 
 import { VIEW, SIM } from './config.js';
 import { Input } from './core/input.js';
@@ -28,6 +29,7 @@ function readOptions() {
     rivals: int('rivals', 0, 7),
     debug: q.get('debug') === '1',
     tutorial: q.get('tutorial') === '1',
+    items: q.get('items') !== '0',
   };
 }
 
@@ -66,7 +68,7 @@ export class Game {
 
   startRace({ laps, rivals }) {
     const o = this.options;
-    this.setScene(new RaceScene(this, { laps: laps ?? o.laps, rivals: rivals ?? o.rivals, seed: o.seed, tutorial: o.tutorial }));
+    this.setScene(new RaceScene(this, { laps: laps ?? o.laps, rivals: rivals ?? o.rivals, seed: o.seed, tutorial: o.tutorial, items: o.items }));
   }
 
   /** Scale the 320x180 canvas up to fill the window, in whole pixels when there's room. */
