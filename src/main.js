@@ -9,6 +9,7 @@
 //   ?tutorial=1  first-race item boxes (BLACK HOLE then BOOST) even if you've fused before
 //   ?items=0     no item boxes: just the track and the driving (and no tyre stacks)
 //   ?obstacles=1 tyre stacks on (or =0 off) whatever the item setting
+//   ?potato=0    no hot potato (it's on by default when items are off)
 
 import { VIEW, SIM } from './config.js';
 import { Input } from './core/input.js';
@@ -32,6 +33,7 @@ function readOptions() {
     tutorial: q.get('tutorial') === '1',
     items: q.get('items') !== '0',
     obstacles: q.has('obstacles') ? q.get('obstacles') === '1' : undefined,
+    potato: q.has('potato') ? q.get('potato') === '1' : undefined,
   };
 }
 
@@ -70,7 +72,7 @@ export class Game {
 
   startRace({ laps, rivals }) {
     const o = this.options;
-    this.setScene(new RaceScene(this, { laps: laps ?? o.laps, rivals: rivals ?? o.rivals, seed: o.seed, tutorial: o.tutorial, items: o.items, obstacles: o.obstacles }));
+    this.setScene(new RaceScene(this, { laps: laps ?? o.laps, rivals: rivals ?? o.rivals, seed: o.seed, tutorial: o.tutorial, items: o.items, obstacles: o.obstacles, potato: o.potato }));
   }
 
   /** Scale the 320x180 canvas up to fill the window, in whole pixels when there's room. */

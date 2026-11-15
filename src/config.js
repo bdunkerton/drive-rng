@@ -65,6 +65,23 @@ export const RAM = {
   botsSpinPlayer: false,
 };
 
+// The hot potato (a race mode, on whenever items are off): one potato in play at all times.
+export const POTATO = {
+  firstDelay: 2,        // seconds after GO before it appears (with whoever's last)
+  fuseSeconds: 8,       // a fresh fuse; every pass starts a new one
+  noTagBackSeconds: 2,  // after passing it on, nobody can hand it back to you for this long
+  holdMinSeconds: 0.6,  // a new holder can't pass it on this quickly (no pinballing through a pack)
+  topSpeed: 0.12,       // the holder is this much faster...
+  accel: 0.3,           // ...and accelerates this much harder
+  boomSpinScale: 1.5,   // the boom spins you for longer than a ram
+  boomKeepSpeed: 0.35,  // and leaves you with this much of your speed
+  respawnSeconds: 1.5,  // after a boom, it turns up with the last-place kart this much later
+  // Rivals: how far up the road (in course distance) a holder looks for someone to tag,
+  // and how close the holder has to be behind before a rival starts running.
+  aiChaseRange: 220,
+  aiFleeRange: 110,
+};
+
 // Keyboard steering eases in and out instead of snapping to full lock.
 export const STEER = {
   attack: 6,            // per second toward full lock (about 0.17 s from centre)

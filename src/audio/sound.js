@@ -94,6 +94,9 @@ export class Sound {
       case 'blast':
         this.noise(0.45, { volume: 0.3, filter: 900 });
         return this.tone(160, 0.35, { type: 'square', volume: 0.08, slideTo: 40 });
+      case 'potato': return [0, 0.07, 0.14].forEach((d, i) => this.tone([523, 392, 262][i], 0.09, { type: 'square', volume: 0.1, delay: d }));
+      case 'potato-off': return [0, 0.07].forEach((d, i) => this.tone([523, 1047][i], 0.09, { type: 'triangle', volume: 0.1, delay: d }));
+      case 'tick': return this.tone(1600, 0.03, { type: 'square', volume: 0.05 });
       case 'fuse': return [0, 0.08].forEach((d, i) => this.tone(660 * (i + 1), 0.15, { type: 'triangle', volume: 0.1, delay: d }));
       case 'wild': return [0, 0.06, 0.12, 0.18, 0.24, 0.3].forEach((d, i) => this.tone(523 * [1, 1.25, 1.5, 2, 2.5, 3][i], 0.12, { type: 'square', volume: 0.08, delay: d }));
       // The sad horn: two flat honks sliding down.

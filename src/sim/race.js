@@ -14,6 +14,7 @@ import './powerups/index.js';
 import { useFrontItem, fuseFront, cycleHand } from './hand.js';
 import { HumanController } from './controllers.js';
 import { hitKart } from './hits.js';
+import { Potato } from './potato.js';
 import { AIDriver } from '../ai/driver.js';
 
 export const ROSTER = [
@@ -41,6 +42,7 @@ export class Race {
    * @param {number} [opts.countdown] seconds of countdown (0 to start immediately)
    * @param {string[]|null} [opts.firstPickups] the human's first item boxes give these (first race)
    * @param {boolean} [opts.items]  false: no item boxes at all, just driving (default true)
+   * @param {boolean} [opts.potato]  the hot potato mode (default: on when items are off)
    * @param {boolean} [opts.obstacles]  tyre stacks on the track (default: only when items are on)
    */
   constructor(opts) {
@@ -53,6 +55,7 @@ export class Race {
     this.itemsOn = opts.items ?? true;
     // Tyre stacks are there for items to play with (giants shove them, springs clear them).
     this.obstaclesOn = opts.obstacles ?? this.itemsOn;
+    this.potato = (opts.potato ?? !this.itemsOn) ? new Potato(this) : null;
 
     this.phase = 'countdown'; // 'countdown' | 'racing' | 'done'
     this.countdownLeft = opts.countdown ?? RACE.countdownSeconds;
@@ -155,6 +158,7 @@ export class Race {
     this.updateDrafts(dt);
     for (const kart of this.karts) this.stepOne(kart, dt);
     this.resolveBumps();
+    this.potato?.step(dt);
     resolveSolids(this);
 
     for (const e of this.entities) {
@@ -324,6 +328,7 @@ export class Race {
         const r = a.radius + b.radius;
         const d2 = dx * dx + dy * dy;
         if (d2 >= r * r || d2 === 0) continue;
+        this.potato?.touch(a, b);
         const d = Math.sqrt(d2);
         const nx = dx / d;
         const ny = dy / d;

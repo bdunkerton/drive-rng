@@ -2,7 +2,7 @@
 // `stepKart` is the driving physics. It knows nothing about the track; race.js
 // applies surfaces and the fence after each step.
 
-import { KART, ITEMS, DRAFT } from '../config.js';
+import { KART, ITEMS, DRAFT, POTATO } from '../config.js';
 import { clamp, approach } from '../core/math.js';
 import { EffectList, STAT_KEYS } from './effects.js';
 
@@ -50,6 +50,8 @@ export class Kart {
     // Drafting: 0 (none) to 1 (full), and whose wake you're in right now (or null).
     this.draft = 0;
     this.draftingBehind = null;
+    // Holding the hot potato (see src/sim/potato.js).
+    this.hasPotato = false;
 
     // Bookkeeping for effects and rendering
     this.lastWallHit = -1;
@@ -64,6 +66,10 @@ export class Kart {
     if (this.draft > 0) {
       out.maxSpeed *= 1 + DRAFT.topSpeed * this.draft;
       out.accel *= 1 + DRAFT.accel * this.draft;
+    }
+    if (this.hasPotato) {
+      out.maxSpeed *= 1 + POTATO.topSpeed;
+      out.accel *= 1 + POTATO.accel;
     }
     return out;
   }
