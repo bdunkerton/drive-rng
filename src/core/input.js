@@ -14,6 +14,8 @@ export const BINDINGS = {
   back: ['Escape', 'Backspace'],
   mute: ['KeyM'],
   debug: ['Backquote'],
+  focus: ['ShiftLeft', 'ShiftRight', 'Space'],
+  feedback: ['KeyF'],
 };
 
 const GAME_KEYS = new Set(Object.values(BINDINGS).flat());
@@ -25,7 +27,10 @@ export class Input {
     this.down = new Set();
     this.pressed = new Set();
     this.onAnyKey = null;
+    // Typing in the lab's feedback box (or any form field) isn't driving.
+    const typing = (e) => e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
     target.addEventListener('keydown', (e) => {
+      if (typing(e)) return;
       if (GAME_KEYS.has(e.code) || /^Digit[0-9]$/.test(e.code) || EXTRA_DIGITS.includes(e.code)) e.preventDefault();
       if (!e.repeat) this.pressed.add(e.code);
       this.down.add(e.code);

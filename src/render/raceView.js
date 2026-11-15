@@ -93,6 +93,18 @@ export class RaceView {
       this.particles.burst(kart.x, kart.y, 26, ['#f0a03a', '#a8662a', PAL.boostHot, PAL.white], 80, 0.5);
       if (kart === this.target) this.shake = Math.max(this.shake, 5);
     });
+    on('nearmiss', ({ kart, other }) => {
+      const x = (kart.x + other.x) / 2;
+      const y = (kart.y + other.y) / 2;
+      this.particles.burst(x, y, 6, ['#d2b8ff', PAL.white], 40, 0.25);
+    });
+    on('billiards:shot', ({ by, kart }) => {
+      this.particles.burst((by.x + kart.x) / 2, (by.y + kart.y) / 2, 16, [PAL.white, PAL.gold], 70, 0.35);
+      if (by === this.target) this.shake = Math.max(this.shake, 2);
+    });
+    on('billiards:hit', ({ kart, chain }) => {
+      this.particles.burst(kart.x, kart.y, 12 + chain * 4, [PAL.white, PAL.gold, PAL.boostHot], 60 + chain * 10, 0.4);
+    });
     on('ram', ({ by, kart }) => {
       this.particles.burst((by.x + kart.x) / 2, (by.y + kart.y) / 2, 18, [PAL.white, PAL.gold, PAL.boostHot], 70, 0.4);
       if (by === this.target) this.shake = Math.max(this.shake, 3);
@@ -152,6 +164,10 @@ export class RaceView {
             colour: Math.random() < 0.5 ? PAL.boost : PAL.boostHot,
           });
         }
+      }
+      // Billiards: a "live" kart (just struck) trails white and gold.
+      if (race.time < k.cueUntil) {
+        this.particles.emit({ x: k.x + (Math.random() - 0.5) * 6, y: k.y + (Math.random() - 0.5) * 6, life: 0.3, colour: Math.random() < 0.5 ? PAL.white : PAL.gold, drag: 6 });
       }
       // Drafting: wind lines streaming past either side of the kart.
       if (k.draftingBehind && k.draft > 0.15 && Math.random() < 0.35 + k.draft * 0.5) {

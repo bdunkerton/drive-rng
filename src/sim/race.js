@@ -2,7 +2,7 @@
 // It runs in fixed steps and has no idea a browser exists, so it runs the same in
 // the game, in tests and in the headless simulator (npm run sim).
 
-import { RACE, SURFACE, WALL, BUMP, SIM, DRAFT, RAM, HITS } from '../config.js';
+import { RACE, SURFACE, WALL, BUMP, SIM, DRAFT, RAM, HITS, LEAP, BILLIARDS, FOCUS } from '../config.js';
 import { Rng } from '../core/rng.js';
 import { Events } from '../core/events.js';
 import { loopDelta, sign } from '../core/math.js';
@@ -27,7 +27,21 @@ export const ROSTER = [
   { name: 'FROST', color: 'cyan' },
   { name: 'PIP', color: 'pink' },
   { name: 'DASH', color: 'grey' },
+  { name: 'ACE', color: 'white' },
+  { name: 'ZIP', color: 'lime' },
+  { name: 'TANK', color: 'brown' },
+  { name: 'NOVA', color: 'navy' },
 ];
+
+/** Mechanics a race can switch on or off. */
+export const DEFAULT_RULES = {
+  draft: true,      // slipstream behind other karts
+  ram: true,        // nose hits off-centre spin the target
+  potato: false,    // the hot potato (default depends on items, see the constructor)
+  leapfrog: false,  // drive into a spinning kart to vault over it
+  billiards: false, // rams hand your speed to the target, which can spin whoever it hits
+  focus: false,     // near misses fill FOCUS; hold it for slow motion
+};
 
 const rubberOf = (k) => k.effects.active.find((e) => e.id === 'rubber')?.bounce ?? 0;
 
@@ -43,6 +57,8 @@ export class Race {
    * @param {string[]|null} [opts.firstPickups] the human's first item boxes give these (first race)
    * @param {boolean} [opts.items]  false: no item boxes at all, just driving (default true)
    * @param {boolean} [opts.potato]  the hot potato mode (default: on when items are off)
+   * @param {object} [opts.rules]  which mechanics are on: draft, ram, potato, leapfrog,
+   *   billiards, focus (see DEFAULT_RULES). The playtest lab's scenarios set these.
    * @param {boolean} [opts.obstacles]  tyre stacks on the track (default: only when items are on)
    */
   constructor(opts) {
@@ -55,7 +71,8 @@ export class Race {
     this.itemsOn = opts.items ?? true;
     // Tyre stacks are there for items to play with (giants shove them, springs clear them).
     this.obstaclesOn = opts.obstacles ?? this.itemsOn;
-    this.potato = (opts.potato ?? !this.itemsOn) ? new Potato(this) : null;
+    this.rules = { ...DEFAULT_RULES, potato: opts.potato ?? !this.itemsOn, ...opts.rules };
+    this.potato = this.rules.potato ? new Potato(this) : null;
 
     this.phase = 'countdown'; // 'countdown' | 'racing' | 'done'
     this.countdownLeft = opts.countdown ?? RACE.countdownSeconds;
@@ -155,9 +172,10 @@ export class Race {
 
     this.time += dt;
 
-    this.updateDrafts(dt);
+    if (this.rules.draft) this.updateDrafts(dt);
     for (const kart of this.karts) this.stepOne(kart, dt);
     this.resolveBumps();
+    if (this.rules.focus) this.updateFocus(dt);
     this.potato?.step(dt);
     resolveSolids(this);
 
@@ -313,6 +331,95 @@ export class Race {
     return true;
   }
 
+  /** LEAPFROG rule: drive nose-first into a spinning kart and you vault over it. */
+  tryVault(k, spinner) {
+    if (!spinner.effects.has('spinout') || k.effects.has('spinout') || k.effects.hasTag('air') || k.finished) return false;
+    const fx = Math.cos(k.heading);
+    const fy = Math.sin(k.heading);
+    const dx = spinner.x - k.x;
+    const dy = spinner.y - k.y;
+    const d = Math.hypot(dx, dy) || 1;
+    if ((dx * fx + dy * fy) / d < LEAP.nose) return false;
+    const closing = ((k.vx - spinner.vx) * dx + (k.vy - spinner.vy) * dy) / d;
+    if (closing < LEAP.minClosing) return false;
+    k.addEffect({ id: 'vaulting', duration: LEAP.seconds, height: LEAP.height, tags: ['air'], stacking: 'ignore', modifiers: { maxSpeed: LEAP.airSpeed, turnRate: 0.7 } }, this);
+    k.kick(LEAP.kick);
+    this.events.emit('vault', { kart: k, over: spinner });
+    this.events.emit('sfx', { name: 'spring', kart: k });
+    if (k.isPlayer) this.events.emit('toast', { kart: k, text: `LEAPFROGGED ${spinner.name}!`, colour: 'good' });
+    return true;
+  }
+
+  /**
+   * BILLIARDS rule, the first hit: ram a kart nose-first and your speed goes into it, along
+   * the line of the hit (so an off-centre hit sends it off at an angle). It doesn't spin;
+   * it becomes "live" for a moment and spins whoever it hits. You nearly stop.
+   */
+  tryShot(attacker, target, nx, ny, closing) {
+    if (closing < (attacker.isPlayer ? RAM.minClosing : RAM.botMinClosing)) return false;
+    if (attacker.effects.has('spinout') || target.finished || this.time < target.cueUntil) return false;
+    if (!RAM.botsSpinPlayer && target.isPlayer && !attacker.isPlayer) return false;
+    const ax = Math.cos(attacker.heading);
+    const ay = Math.sin(attacker.heading);
+    if (nx * ax + ny * ay < RAM.nose) return false;
+    const push = closing * BILLIARDS.transfer + attacker.speed * 0.25;
+    target.vx += nx * push;
+    target.vy += ny * push;
+    attacker.vx *= BILLIARDS.keep;
+    attacker.vy *= BILLIARDS.keep;
+    target.cueUntil = this.time + BILLIARDS.cueSeconds;
+    target.cueOrigin = attacker;
+    target.cueChain = 0;
+    this.events.emit('billiards:shot', { by: attacker, kart: target, speed: push });
+    this.events.emit('sfx', { name: 'bump' });
+    return true;
+  }
+
+  /** BILLIARDS rule, the follow-through: a live kart that hits another spins it and passes on its speed. */
+  tryCueHit(cue, target, nx, ny, closing) {
+    if (this.time >= cue.cueUntil || closing < BILLIARDS.chainClosing) return false;
+    const origin = cue.cueOrigin;
+    if (target === origin || target.finished) return false;
+    if (!RAM.botsSpinPlayer && target.isPlayer && origin && !origin.isPlayer) return false;
+    const result = hitKart(target, this, { by: origin, kind: 'ram' });
+    if (result !== 'hit') return false;
+    target.vx += nx * closing * 0.7;
+    target.vy += ny * closing * 0.7;
+    cue.vx *= BILLIARDS.keep;
+    cue.vy *= BILLIARDS.keep;
+    cue.cueUntil = -Infinity;
+    const chain = cue.cueChain + 1;
+    // The spun kart carries on live too: chain reactions.
+    target.cueUntil = this.time + BILLIARDS.cueSeconds * 0.8;
+    target.cueOrigin = origin;
+    target.cueChain = chain;
+    this.events.emit('billiards:hit', { by: origin, cue, kart: target, chain });
+    if (origin?.isPlayer && chain >= 2) this.events.emit('toast', { kart: origin, text: `${chain}X CHAIN!`, colour: 'good' });
+    return true;
+  }
+
+  /** FOCUS rule: near misses with other karts (and hugging the fence fast) fill the player's FOCUS. */
+  updateFocus(dt) {
+    const p = this.player;
+    if (!p || p.finished || this.phase !== 'racing') return;
+    this.nearMissAt ??= new Map();
+    for (const k of this.karts) {
+      if (k === p) continue;
+      const gap = Math.hypot(k.x - p.x, k.y - p.y) - p.radius - k.radius;
+      if (gap <= 0 || gap > FOCUS.nearMissGap) continue;
+      const rel = Math.hypot(k.vx - p.vx, k.vy - p.vy);
+      if (rel < FOCUS.nearMissSpeed) continue;
+      if (this.time - (this.nearMissAt.get(k) ?? -Infinity) < FOCUS.sameKartCooldown) continue;
+      this.nearMissAt.set(k, this.time);
+      p.focus = Math.min(1, p.focus + FOCUS.perNearMiss);
+      this.events.emit('nearmiss', { kart: p, other: k });
+      this.events.emit('sfx', { name: 'grab', kart: p });
+    }
+    // Riding the curb at speed (right on the edge of the road) trickles some in too.
+    const toEdge = this.track.halfWidth + this.track.curbWidth - Math.abs(p.lateral);
+    if (toEdge > 0 && toEdge < FOCUS.wallGap && p.speed > FOCUS.wallSpeed) p.focus = Math.min(1, p.focus + FOCUS.wallPerSecond * dt);
+  }
+
   resolveBumps() {
     const karts = this.karts;
     for (let i = 0; i < karts.length; i++) {
@@ -329,6 +436,7 @@ export class Race {
         const d2 = dx * dx + dy * dy;
         if (d2 >= r * r || d2 === 0) continue;
         this.potato?.touch(a, b);
+        if (this.rules.leapfrog && (this.tryVault(a, b) || this.tryVault(b, a))) continue;
         const d = Math.sqrt(d2);
         const nx = dx / d;
         const ny = dy / d;
@@ -360,7 +468,11 @@ export class Race {
             b.effects.notify('onBump', b, a, this);
           }
           // Ramming: either kart may have hit the other with its nose.
-          if (!this.tryRam(a, b, nx, ny, -rv, aFwd)) this.tryRam(b, a, -nx, -ny, -rv, bFwd);
+          if (this.rules.billiards) {
+            if (!this.tryCueHit(a, b, nx, ny, -rv) && !this.tryCueHit(b, a, -nx, -ny, -rv)) {
+              if (this.rules.ram && !this.tryShot(a, b, nx, ny, -rv)) this.tryShot(b, a, -nx, -ny, -rv);
+            }
+          } else if (this.rules.ram && !this.tryRam(a, b, nx, ny, -rv, aFwd)) this.tryRam(b, a, -nx, -ny, -rv, bFwd);
         }
       }
     }

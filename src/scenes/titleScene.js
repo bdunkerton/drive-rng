@@ -33,7 +33,7 @@ export class TitleScene {
     if (input.wasPressed('down')) this.index = (this.index + 1) % 3;
     const dx = (input.wasPressed('right') ? 1 : 0) - (input.wasPressed('left') ? 1 : 0);
     if (dx && this.index === 1) this.laps = clamp(this.laps + dx, 1, 9);
-    if (dx && this.index === 2) this.rivals = clamp(this.rivals + dx, 0, 7);
+    if (dx && this.index === 2) this.rivals = clamp(this.rivals + dx, 0, 12);
     if (input.wasPressed('up') || input.wasPressed('down') || dx) sound.play('menu');
     if (input.wasPressed('confirm') && this.index === 0) {
       sound.play('select');

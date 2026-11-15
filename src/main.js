@@ -10,12 +10,16 @@
 //   ?items=0     no item boxes: just the track and the driving (and no tyre stacks)
 //   ?obstacles=1 tyre stacks on (or =0 off) whatever the item setting
 //   ?potato=0    no hot potato (it's on by default when items are off)
+//   ?lab=1       the playtest lab (scenarios on the Test Oval, with feedback); ?lab=<id> jumps into one
 
 import { VIEW, SIM } from './config.js';
 import { Input } from './core/input.js';
 import { Sound } from './audio/sound.js';
 import { TitleScene } from './scenes/titleScene.js';
 import { RaceScene } from './scenes/raceScene.js';
+import { LabScene } from './scenes/labScene.js';
+import { scenarioById, LAB_DEFAULTS } from './lab/scenarios.js';
+import oval from './tracks/oval.js';
 
 function readOptions() {
   const q = new URLSearchParams(location.search);
@@ -28,12 +32,13 @@ function readOptions() {
     quick: q.get('quick') === '1',
     seed: q.has('seed') ? q.get('seed') : undefined,
     laps: int('laps', 1, 9),
-    rivals: int('rivals', 0, 7),
+    rivals: int('rivals', 0, 12),
     debug: q.get('debug') === '1',
     tutorial: q.get('tutorial') === '1',
     items: q.get('items') !== '0',
     obstacles: q.has('obstacles') ? q.get('obstacles') === '1' : undefined,
     potato: q.has('potato') ? q.get('potato') === '1' : undefined,
+    lab: q.get('lab'),
   };
 }
 
@@ -55,7 +60,10 @@ export class Game {
     });
     this.fps = 60;
     this.scene = null;
-    if (this.options.quick) this.startRace({});
+    const lab = this.options.lab;
+    if (lab && scenarioById(lab)) this.startScenario(scenarioById(lab));
+    else if (lab) this.toLab();
+    else if (this.options.quick) this.startRace({});
     else this.toTitle();
     this.fit();
     window.addEventListener('resize', () => this.fit());
@@ -68,6 +76,24 @@ export class Game {
 
   toTitle() {
     this.setScene(new TitleScene(this));
+  }
+
+  toLab(select) {
+    this.setScene(new LabScene(this, { select }));
+  }
+
+  /** Play one of the playtest lab's scenarios on the Test Oval. */
+  startScenario(scenario) {
+    const o = this.options;
+    this.setScene(new RaceScene(this, {
+      scenario,
+      track: oval,
+      rules: { potato: false, ...scenario.rules },
+      items: false,
+      laps: o.laps ?? scenario.laps ?? LAB_DEFAULTS.laps,
+      rivals: o.rivals ?? scenario.rivals ?? LAB_DEFAULTS.rivals,
+      seed: o.seed,
+    }));
   }
 
   startRace({ laps, rivals }) {

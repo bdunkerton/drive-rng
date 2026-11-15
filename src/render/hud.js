@@ -113,6 +113,9 @@ export class Hud {
     // Speed bar, bottom left.
     if (race.player) this.drawSpeed(g, race.player);
 
+    // FOCUS meter, bottom centre (bullet time scenarios).
+    if (race.player && race.rules?.focus) this.drawFocus(g, race.player);
+
     // Minimap, bottom right.
     this.drawMinimap(g);
 
@@ -202,6 +205,19 @@ export class Hud {
       if (age > TOAST_SECONDS - 0.4 && Math.floor(age * 10) % 2) return; // blink out
       drawText(g, t.text, VIEW.width / 2, 42 + i * 7, { color: t.colour, align: 'center' });
     });
+  }
+
+  drawFocus(g, kart) {
+    const w = 70;
+    const x = Math.round(VIEW.width / 2 - w / 2);
+    const y = VIEW.height - 10;
+    g.fillStyle = PAL.hudBg;
+    g.fillRect(x - 1, y - 1, w + 2, 6);
+    g.fillStyle = kart.focus >= 0.999 ? PAL.white : '#a77bff';
+    g.fillRect(x, y, Math.round(w * kart.focus), 4);
+    const ready = kart.focus > 0.2;
+    const label = ready && Math.floor(this.clock * 3) % 2 === 0 ? 'HOLD SHIFT' : 'FOCUS';
+    drawText(g, label, VIEW.width / 2, y - 8, { color: ready ? '#d2b8ff' : PAL.silver, align: 'center' });
   }
 
   drawSpeed(g, kart) {
