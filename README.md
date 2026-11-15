@@ -42,6 +42,8 @@ The karts are quick and they don't drive themselves. Steering gets heavier the f
 
 **Drafting:** tuck in behind another kart and its wake pulls you along. The DRAFT meter above your speed fills; full draft is about 15% more top speed. Pull out and the extra speed fades over a second: that's the slingshot past.
 
+**Hot potato** (on whenever items are off): one potato is always in play. A couple of seconds after GO it turns up with whoever's last. Whoever holds it is faster and has an 8-second fuse; touch any kart and it's theirs, with a fresh fuse. Whoever just passed it can't be handed it back for 2 seconds, and a new holder can't pass it on for the first half-second. If the fuse runs out, the holder spins out for longer than a ram and loses most of its speed, and the potato reappears with whoever's closest behind another kart. An arrow at the screen edge points to it when it's off screen. Rivals chase someone when they've got it (or sit in front of the kart behind and brake), and get to the other side of the road when the holder's coming.
+
 **Ramming:** hit a kart with your nose, off its centreline (a rear corner or a side), fast enough, and it spins out while you keep most of your speed. Hit it dead centre from behind and you only shove it forward, which helps it. A kart that just spun can't be spun again for a moment. Rivals don't aim; their accidental bumps only spin each other on big hits, and for now they can't spin you.
 
 **Tyre stacks** sit on the track: a wall across half the front straight, one on the apex of the right sweeper, one in the middle of the chicane, one on the inside of the hairpin, and a pair on the back section. A normal kart bounces off them. A BULK giant can shove them out of the way, a SPRING jumps over them, and a GHOST passes through.
@@ -121,6 +123,7 @@ Add these to the address, e.g. `http://localhost:8080/?quick=1&laps=1&seed=banan
 | `debug=1` | Start with the debug overlay on |
 | `tutorial=1` | First-race item boxes (BLACK HOLE, then BOOST) even if you've fused before |
 | `items=0` | No item boxes, for anyone: just the track and the driving. Also takes the tyre stacks out |
+| `potato=0` | No hot potato (it's on by default when items are off; `potato=1` turns it on with items too) |
 | `obstacles=1` | Tyre stacks on (or `obstacles=0` off), whatever the item setting |
 
 ### Debug overlay

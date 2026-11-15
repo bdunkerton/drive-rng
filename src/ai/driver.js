@@ -3,7 +3,7 @@
 // hand: fusing sometimes, using items when they'd do something. It also backs out if
 // it gets stuck.
 
-import { AI, KART } from '../config.js';
+import { AI, KART, POTATO } from '../config.js';
 import { clamp, angleDiff, lerp, loopDelta } from '../core/math.js';
 import { isReady, canFuse, aiWantsItem } from '../sim/hand.js';
 import { powerups } from '../sim/powerups/index.js';
@@ -51,13 +51,21 @@ export class AIDriver {
     // Tyre stacks: if the planned line goes through one, pick a side and commit.
     const look = AI.lookaheadBase + Math.max(0, speed) * AI.lookaheadPerSpeed;
     const avoid = this.planAroundSolids(kart, race, 60 + Math.max(0, speed) * 1.3);
-    this.lane = lerp(this.lane, this.laneTarget, clamp(dt * (avoid !== null ? 8 : 1.5), 0, 1));
+    // Hot potato: chase someone when holding it, get out of the way when the holder's close.
+    const tag = race.phase === 'racing' && !kart.finished ? this.playTag(kart, race) : null;
+    if (tag) this.laneTarget = clamp(tag.lane, -track.halfWidth + 6, track.halfWidth - 6);
+    const laneRate = avoid !== null ? 8 : tag ? 2 + 3 * this.skill : 1.5;
+    this.lane = lerp(this.lane, this.laneTarget, clamp(dt * laneRate, 0, 1));
 
     // --- Steering -------------------------------------------------------------
     // Swerving round a stack, it aims at the gap itself rather than far up the road.
     const aheadS = kart.s + (avoid !== null ? clamp(avoid, 30, look) : look);
     const offset = clamp(track.racingLineAt(aheadS) * this.skill + this.lane, -track.halfWidth + 5, track.halfWidth - 5);
-    const target = track.pointAt(aheadS, offset);
+    let target = track.pointAt(aheadS, offset);
+    // Close enough to tag: drive straight at them (leading them a touch).
+    if (tag?.mode === 'chase' && tag.gap < 70) {
+      target = { x: tag.kart.x + tag.kart.vx * 0.15, y: tag.kart.y + tag.kart.vy * 0.15 };
+    }
     const desired = Math.atan2(target.y - kart.y, target.x - kart.x);
     const turn = angleDiff(kart.heading, desired);
     let steer = clamp(turn * 2.8, -1, 1);
@@ -65,6 +73,8 @@ export class AIDriver {
     // --- Speed planning -------------------------------------------------------
     let targetSpeed = Math.min(stats.maxSpeed * this.skill, this.planSpeed(kart, race, stats));
     if (Math.abs(turn) > 0.7) targetSpeed *= 0.7;
+    // Leading with the potato and nobody ahead: lift and let the kart behind run into you.
+    if (tag?.mode === 'brake-check' && tag.gap < 45) targetSpeed *= 0.75;
     targetSpeed = Math.max(targetSpeed, 34);
 
     let throttle = 1;
@@ -104,6 +114,46 @@ export class AIDriver {
     this.debug.tx = target.x;
     this.debug.ty = target.y;
     this.debug.targetSpeed = targetSpeed;
+  }
+
+  /**
+   * The hot potato, from a rival's point of view. Returns where in the road it wants to be
+   * (a lateral offset) and why, or null if the potato's no business of its own right now.
+   * Better rivals commit harder: they line up more exactly and run further out of the way.
+   */
+  playTag(kart, race) {
+    const potato = race.potato;
+    if (!potato?.holder) return null;
+    const edge = race.track.halfWidth - 8;
+    if (potato.holder === kart) {
+      // Someone up the road it's allowed to tag?
+      let best = null;
+      let bestGap = Infinity;
+      for (const k of race.karts) {
+        if (k === kart || !potato.canTake(k)) continue;
+        const gap = k.progress - kart.progress;
+        if (gap > 0 && gap < POTATO.aiChaseRange && gap < bestGap) {
+          best = k;
+          bestGap = gap;
+        }
+      }
+      if (best) return { mode: 'chase', kart: best, gap: bestGap, lane: lerp(this.laneBias, best.lateral, this.skill) };
+      // Nobody ahead worth chasing: sit in the line of the nearest kart behind.
+      for (const k of race.kartsBehind(kart)) {
+        if (!potato.canTake(k)) continue;
+        const gap = kart.progress - k.progress;
+        if (gap < 90) return { mode: 'brake-check', kart: k, gap, lane: lerp(this.laneBias, k.lateral, this.skill) };
+        break;
+      }
+      return null;
+    }
+    // Someone else has it. If they're close, get to the other side of the road from them.
+    if (!potato.canTake(kart)) return null;
+    const h = potato.holder;
+    const behind = kart.progress - h.progress;
+    if (behind < -40 || behind > POTATO.aiFleeRange) return null;
+    const away = h.lateral > kart.lateral ? -1 : 1;
+    return { mode: 'flee', kart: h, gap: Math.abs(behind), lane: away * edge * (0.5 + 0.5 * this.skill) };
   }
 
   /**

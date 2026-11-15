@@ -105,8 +105,9 @@ export class Hud {
       drawText(g, `OF ${race.karts.length}`, VIEW.width - 8, 24, { color: PAL.white, align: 'right' });
     }
 
-    // Item hand, top centre, and the messages under it.
+    // Item hand (or the potato), top centre, and the messages under it.
     if (race.player && race.itemsOn) this.drawHand(g, race.player);
+    if (race.potato) this.drawPotato(g, race.potato);
     this.drawToasts(g);
 
     // Speed bar, bottom left.
@@ -172,6 +173,29 @@ export class Hud {
     }
   }
 
+  /** Who has the potato and how long it's got: big and red if it's you. */
+  drawPotato(g, potato) {
+    const h = potato.holder;
+    if (!h) return;
+    const mine = h === this.race.player;
+    const left = potato.fuse;
+    const urgent = left < 2.5;
+    const flash = urgent && Math.floor(this.clock * (left < 1.2 ? 10 : 5)) % 2 === 0;
+    const w = mine ? 90 : 60;
+    const x = Math.round(VIEW.width / 2 - w / 2);
+    const y = mine ? 16 : 13;
+    if (mine) {
+      drawOutlinedText(g, 'HOT POTATO! TAG SOMEONE!', VIEW.width / 2, 4, { color: flash ? PAL.white : '#f0a03a', align: 'center' });
+    } else {
+      const who = h.name;
+      drawText(g, `POTATO: ${who}`, VIEW.width / 2, 4, { color: '#f0a03a', align: 'center' });
+    }
+    g.fillStyle = PAL.hudBg;
+    g.fillRect(x - 1, y - 1, w + 2, mine ? 6 : 4);
+    g.fillStyle = flash ? PAL.white : urgent ? PAL.danger : '#f0a03a';
+    g.fillRect(x, y, Math.round(w * potato.fuseFraction), mine ? 4 : 2);
+  }
+
   drawToasts(g) {
     this.toasts.forEach((t, i) => {
       const age = this.clock - t.born;
@@ -228,6 +252,13 @@ export class Hud {
       g.fillRect(x + mx - 1, y + my - 1, 3, 3);
       g.fillStyle = KART_COLOURS[k.color]?.body ?? PAL.white;
       g.fillRect(x + mx - 1, y + my - 1, 2, 2);
+    }
+    // The potato: an orange dot just above whoever has it.
+    const h = this.race.potato?.holder;
+    if (h) {
+      const [mx, my] = m.toMap(h.x, h.y);
+      g.fillStyle = Math.floor(this.clock * 6) % 2 ? '#f0a03a' : PAL.white;
+      g.fillRect(x + mx - 1, y + my - 4, 2, 2);
     }
   }
 
