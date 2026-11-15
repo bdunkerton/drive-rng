@@ -196,6 +196,18 @@ export class Hud {
       g.fillRect(x + w - Math.min(w, Math.round(w * (frac - 1))), y, Math.min(w, Math.round(w * (frac - 1))), 4);
     }
     drawText(g, `${Math.round(speed)}`, x + w + 4, y - 1, { color: PAL.white });
+    // Draft meter just above: fills in someone's wake, drains after (the slingshot).
+    if (kart.draft > 0) {
+      const dy = y - 9;
+      const full = kart.draft > 0.95;
+      g.fillStyle = PAL.hudBg;
+      g.fillRect(x - 1, dy - 1, w + 2, 4);
+      g.fillStyle = full ? PAL.white : '#5fd8f0';
+      g.fillRect(x, dy, Math.round(w * kart.draft), 2);
+      const label = kart.draftingBehind ? 'DRAFT' : 'SLINGSHOT';
+      const blink = full && kart.draftingBehind && Math.floor(this.clock * 6) % 2 === 0;
+      drawText(g, label, x + w + 4, dy - 2, { color: blink ? PAL.white : '#5fd8f0' });
+    }
   }
 
   drawMinimap(g) {
