@@ -52,6 +52,11 @@ export class Kart {
     this.draftingBehind = null;
     // Holding the hot potato (see src/sim/potato.js).
     this.hasPotato = false;
+    // Playtest lab: FOCUS meter (0-1), billiards "live" state.
+    this.focus = 0;
+    this.cueUntil = -Infinity;
+    this.cueOrigin = null;
+    this.cueChain = 0;
 
     // Bookkeeping for effects and rendering
     this.lastWallHit = -1;

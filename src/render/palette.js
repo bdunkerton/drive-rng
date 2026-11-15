@@ -58,6 +58,10 @@ export const KART_COLOURS = {
   cyan:   { body: '#3cc8da', dark: '#1f7c88', light: '#9ff2ff' },
   pink:   { body: '#ea70b0', dark: '#9a3a6c', light: '#ffb3dc' },
   grey:   { body: '#9aa0aa', dark: '#5a5f68', light: '#d6dae0' },
+  white:  { body: '#e8e4da', dark: '#9a968c', light: '#ffffff' },
+  lime:   { body: '#a6d93a', dark: '#5f8a1c', light: '#e0ff8a' },
+  brown:  { body: '#a0703c', dark: '#5e3e1e', light: '#d8a874' },
+  navy:   { body: '#3a4aa0', dark: '#1e2660', light: '#7f8fe0' },
 };
 
 export function hexToRgb(hex) {

@@ -110,6 +110,22 @@ In your first race, the first two boxes always give BLACK HOLE then BOOST, and t
 
 The rivals play the same game: they pick up, fuse, cycle and use items, and each powerup tells them when it's worth using. They never fuse opposites on purpose.
 
+### Playtest lab
+
+**https://bdunkerton.github.io/drive-rng/?lab=1**
+
+Small, replayable scenarios, each trying out one mechanic on the **Test Oval** (a wide stadium oval, about 16 seconds a lap) with a pack of 11 karts. Pick one, play it as many times as you like (Enter after the results races again), then press **F** (or pick FEEDBACK from the pause menu) to vote KEEP IT / MEH / DROP IT, tag it and write a note. Feedback is saved in the browser along with what happened in each run (place, rams, potato passes, vaults, near misses and so on). **SEND TO CLAUDE** at the bottom of the lab posts everything unsent as a GitHub issue labelled `playtest` (or copies it to paste into a chat).
+
+Scenarios live in `src/lab/scenarios.js`; each one switches race rules on (`draft`, `ram`, `potato`, `leapfrog`, `billiards`, `focus`; see `DEFAULT_RULES` in `src/sim/race.js`). `?lab=<id>` jumps straight into one, e.g. `?lab=billiards`.
+
+| Scenario | Tries out |
+| --- | --- |
+| PACK RACE | The control: drafting and ramming, nothing else |
+| HOT POTATO | One potato always in play; touch to pass it |
+| LEAPFROG | Drive into a spinning kart to vault over it |
+| BILLIARDS | Rams hand your speed to the kart you hit, which spins whoever it hits |
+| BULLET TIME | Near misses fill FOCUS; hold Shift (or Space) for slow motion |
+
 ### URL options
 
 Add these to the address, e.g. `http://localhost:8080/?quick=1&laps=1&seed=banana`.
@@ -123,6 +139,7 @@ Add these to the address, e.g. `http://localhost:8080/?quick=1&laps=1&seed=banan
 | `debug=1` | Start with the debug overlay on |
 | `tutorial=1` | First-race item boxes (BLACK HOLE, then BOOST) even if you've fused before |
 | `items=0` | No item boxes, for anyone: just the track and the driving. Also takes the tyre stacks out |
+| `lab=1` | The playtest lab (or `lab=<scenario id>` to jump into one) |
 | `potato=0` | No hot potato (it's on by default when items are off; `potato=1` turns it on with items too) |
 | `obstacles=1` | Tyre stacks on (or `obstacles=0` off), whatever the item setting |
 

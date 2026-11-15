@@ -65,6 +65,35 @@ export const RAM = {
   botsSpinPlayer: false,
 };
 
+// Playtest-lab mechanics (each one is a rule a scenario can switch on).
+export const LEAP = {
+  minClosing: 15,       // drive into a spinning kart at least this fast and you vault it
+  nose: 0.4,            // ...nose first (cosine)
+  seconds: 0.6,         // time in the air
+  height: 16,
+  kick: 45,             // extra forward speed on take-off
+  airSpeed: 1.25,       // top-speed multiplier while airborne
+};
+
+export const BILLIARDS = {
+  transfer: 0.95,       // fraction of the closing speed handed to the kart you hit
+  keep: 0.3,            // fraction of your own speed you keep (the cue ball stops)
+  cueSeconds: 1.0,      // how long a struck kart stays "live" and spins whoever it hits
+  chainClosing: 35,     // a live kart has to hit this hard to spin someone
+};
+
+export const FOCUS = {
+  nearMissGap: 7,       // edge-to-edge gap (px) that counts as a near miss
+  nearMissSpeed: 40,    // relative speed needed for it to count
+  perNearMiss: 0.2,     // focus gained per near miss
+  sameKartCooldown: 1.2,
+  wallGap: 5,           // riding the very edge of the road (on the curb) this close...
+  wallSpeed: 140,       // ...at this speed...
+  wallPerSecond: 0.15,  // ...trickles in this much focus per second
+  drainPerSecond: 0.45, // holding focus uses this much per real second (about 2.2 s from full)
+  timeScale: 0.35,      // the world runs at this speed while you're focusing
+};
+
 // The hot potato (a race mode, on whenever items are off): one potato in play at all times.
 export const POTATO = {
   firstDelay: 2,        // seconds after GO before it appears (with whoever's last)
@@ -80,12 +109,6 @@ export const POTATO = {
   // and how close the holder has to be behind before a rival starts running.
   aiChaseRange: 220,
   aiFleeRange: 110,
-};
-
-// Keyboard steering eases in and out instead of snapping to full lock.
-export const STEER = {
-  attack: 6,            // per second toward full lock (about 0.17 s from centre)
-  release: 12,          // per second back toward centre (and through it when you swap sides)
 };
 
 export const SURFACE = {
