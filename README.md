@@ -38,7 +38,11 @@ No Node? `python -m http.server 8080` in this folder works too (tests and the si
 
 ### Driving
 
-The karts are quick and they don't drive themselves. Steering gets heavier the faster you go (heavier still on a boost), so corners have to be braked for. Turn in too hard and the tyres let go: the kart keeps sliding until you straighten up or slow down. Grass is slow. Finding the line is most of a good lap.
+The karts are quick and they don't drive themselves. Steering gets heavier the faster you go (heavier still on a boost), so corners have to be braked for. Turn in too hard and the tyres let go: the kart keeps sliding until you straighten up or slow down. Grass is slow. Finding the line is most of a good lap. Keyboard steering eases in over a fraction of a second, so a tap is a small correction and holding the key winds on lock.
+
+**Drafting:** tuck in behind another kart and its wake pulls you along. The DRAFT meter above your speed fills; full draft is about 15% more top speed. Pull out and the extra speed fades over a second: that's the slingshot past.
+
+**Ramming:** hit a kart with your nose, off its centreline (a rear corner or a side), fast enough, and it spins out while you keep most of your speed. Hit it dead centre from behind and you only shove it forward, which helps it. A kart that just spun can't be spun again for a moment. Rivals don't aim; their accidental bumps only spin each other on big hits, and for now they can't spin you.
 
 **Tyre stacks** sit on the track: a wall across half the front straight, one on the apex of the right sweeper, one in the middle of the chicane, one on the inside of the hairpin, and a pair on the back section. A normal kart bounces off them. A BULK giant can shove them out of the way, a SPRING jumps over them, and a GHOST passes through.
 

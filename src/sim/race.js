@@ -2,7 +2,7 @@
 // It runs in fixed steps and has no idea a browser exists, so it runs the same in
 // the game, in tests and in the headless simulator (npm run sim).
 
-import { RACE, SURFACE, WALL, BUMP, SIM } from '../config.js';
+import { RACE, SURFACE, WALL, BUMP, SIM, DRAFT, RAM, HITS } from '../config.js';
 import { Rng } from '../core/rng.js';
 import { Events } from '../core/events.js';
 import { loopDelta, sign } from '../core/math.js';
@@ -13,6 +13,7 @@ import { placeObstacles, resolveSolids } from './obstacles.js';
 import './powerups/index.js';
 import { useFrontItem, fuseFront, cycleHand } from './hand.js';
 import { HumanController } from './controllers.js';
+import { hitKart } from './hits.js';
 import { AIDriver } from '../ai/driver.js';
 
 export const ROSTER = [
@@ -148,6 +149,7 @@ export class Race {
 
     this.time += dt;
 
+    this.updateDrafts(dt);
     for (const kart of this.karts) this.stepOne(kart, dt);
     this.resolveBumps();
     resolveSolids(this);
@@ -232,6 +234,78 @@ export class Race {
     kart.progress += loopDelta(prevS, kart.s, track.length);
   }
 
+  /**
+   * Drafting. Every kart leaves a wake behind it: a narrow cone that widens further back.
+   * A kart sitting in someone's wake, pointing the same way, fills its draft; out of the
+   * wake the draft fades. Draft raises top speed and acceleration (see Kart.stats).
+   */
+  updateDrafts(dt) {
+    for (const k of this.karts) {
+      let leader = null;
+      let bestAlong = Infinity;
+      const grounded = !k.effects.hasTag('air') && !k.effects.has('spinout');
+      if (grounded && !k.finished) {
+        const hk = k.heading;
+        for (const l of this.karts) {
+          if (l === k || l.effects.hasTag('air') || l.effects.has('spinout')) continue;
+          if (l.speed < DRAFT.leaderMinSpeed) continue;
+          const fx = Math.cos(l.heading);
+          const fy = Math.sin(l.heading);
+          if (Math.cos(hk - l.heading) < DRAFT.align) continue;
+          const dx = k.x - l.x;
+          const dy = k.y - l.y;
+          const along = -(dx * fx + dy * fy) - k.radius - l.radius; // gap behind l's tail
+          if (along < -k.radius || along > DRAFT.range) continue;
+          const lateral = Math.abs(dx * -fy + dy * fx);
+          if (lateral > DRAFT.width + Math.max(0, along) * DRAFT.spread) continue;
+          if (along < bestAlong) {
+            bestAlong = along;
+            leader = l;
+          }
+        }
+      }
+      const was = k.draftingBehind;
+      k.draftingBehind = leader;
+      if (leader) k.draft = Math.min(1, k.draft + dt / DRAFT.fillSeconds);
+      else k.draft = Math.max(0, k.draft - dt / DRAFT.fadeSeconds);
+      if (leader && !was) this.events.emit('draft:start', { kart: k, leader });
+      if (!leader && was && k.draft > 0.5) this.events.emit('draft:slingshot', { kart: k, from: was });
+    }
+  }
+
+  /**
+   * Did `attacker` just ram `target`? `nx, ny` points from attacker to target at contact,
+   * `closing` is how fast they came together. Returns true if the target spun.
+   */
+  tryRam(attacker, target, nx, ny, closing, attackerFwdBefore) {
+    if (closing < (attacker.isPlayer ? RAM.minClosing : RAM.botMinClosing)) return false;
+    if (attacker.effects.has('spinout') || target.finished) return false;
+    if (!RAM.botsSpinPlayer && target.isPlayer && !attacker.isPlayer) return false;
+    if (this.time - target.spunAt < HITS.spinSeconds + RAM.immunity) return false;
+    const ax = Math.cos(attacker.heading);
+    const ay = Math.sin(attacker.heading);
+    const bx = Math.cos(target.heading);
+    const by = Math.sin(target.heading);
+    // The hit lands on the attacker's nose...
+    if (nx * ax + ny * ay < RAM.nose) return false;
+    // ...the two aren't meeting head-on...
+    if (ax * bx + ay * by < RAM.notHeadOn) return false;
+    // ...and it lands off the target's centreline (a rear quarter or a side), not dead centre.
+    const offCentre = Math.abs(nx * -by + ny * bx);
+    if (offCentre < RAM.offCentre) {
+      if (nx * bx + ny * by > 0) this.events.emit('ram:shove', { by: attacker, kart: target });
+      return false;
+    }
+    const result = hitKart(target, this, { by: attacker, kind: 'ram' });
+    if (result !== 'hit') return false;
+    // A clean hit costs the rammer very little: put back most of its forward speed.
+    const fwd = attacker.forwardSpeed;
+    const keep = attackerFwdBefore * RAM.keepSpeed;
+    if (fwd < keep) attacker.kick(keep - fwd);
+    this.events.emit('ram', { by: attacker, kart: target, closing });
+    return true;
+  }
+
   resolveBumps() {
     const karts = this.karts;
     for (let i = 0; i < karts.length; i++) {
@@ -260,6 +334,8 @@ export class Race {
         b.y += ny * overlap * (ma / total);
         const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
         if (rv < 0) {
+          const aFwd = a.forwardSpeed;
+          const bFwd = b.forwardSpeed;
           // RUBBER (from CANNONBALL) makes karts bounce off harder than they hit.
           const bounce = Math.max(BUMP.restitution, rubberOf(a), rubberOf(b));
           const jImp = (-(1 + bounce) * rv) / (1 / ma + 1 / mb);
@@ -275,6 +351,8 @@ export class Race {
             a.effects.notify('onBump', a, b, this);
             b.effects.notify('onBump', b, a, this);
           }
+          // Ramming: either kart may have hit the other with its nose.
+          if (!this.tryRam(a, b, nx, ny, -rv, aFwd)) this.tryRam(b, a, -nx, -ny, -rv, bFwd);
         }
       }
     }

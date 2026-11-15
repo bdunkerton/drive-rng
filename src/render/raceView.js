@@ -88,6 +88,13 @@ export class RaceView {
       if (kart === this.target || other === this.target) this.shake = Math.max(this.shake, 4);
     });
     on('orbit:release', ({ kart }) => this.particles.burst(kart.x, kart.y, 14, ['#5fd8f0', '#ea843b', PAL.white], 55, 0.4));
+    on('ram', ({ by, kart }) => {
+      this.particles.burst((by.x + kart.x) / 2, (by.y + kart.y) / 2, 18, [PAL.white, PAL.gold, PAL.boostHot], 70, 0.4);
+      if (by === this.target) this.shake = Math.max(this.shake, 3);
+    });
+    on('draft:slingshot', ({ kart }) => {
+      if (kart === this.target) this.particles.burst(kart.x, kart.y, 8, ['#9fe2ff', PAL.white], 40, 0.3);
+    });
     on('hit', ({ kart }) => {
       this.particles.burst(kart.x, kart.y, 14, [PAL.white, PAL.boostHot, PAL.danger], 60, 0.45);
       if (kart === this.target) this.shake = 4;
@@ -141,6 +148,16 @@ export class RaceView {
           });
         }
       }
+      // Drafting: wind lines streaming past either side of the kart.
+      if (k.draftingBehind && k.draft > 0.15 && Math.random() < 0.35 + k.draft * 0.5) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const off = 5 + Math.random() * 3;
+        this.particles.emit({
+          x: k.x + fx * 6 - fy * off * side, y: k.y + fy * 6 + fx * off * side,
+          vx: k.vx - fx * 90, vy: k.vy - fy * 90,
+          life: 0.12, colour: k.draft > 0.95 ? '#9fe2ff' : PAL.white, drag: 0,
+        });
+      }
       if (k.effects.hasTag('ride')) {
         for (let i = 0; i < 3; i++) {
           this.particles.emit({ x: k.x - fx * 7, y: k.y - fy * 7, vx: -fx * 60 + (Math.random() - 0.5) * 25, vy: -fy * 60 + (Math.random() - 0.5) * 25, life: 0.25, colour: i === 0 ? PAL.white : Math.random() < 0.5 ? '#e0463a' : PAL.boostHot });
@@ -175,10 +192,13 @@ export class RaceView {
     }
     this.particles.update(dt);
 
-    // Camera: lead slightly in the direction of travel, ease toward it.
+    // Camera: look ahead in the direction of travel so the next corner is on screen in time,
+    // but never so far that your own kart ends up hugging the edge. Ease toward it.
     const t = this.target;
-    const goalX = t.x + t.vx * 0.45 - VIEW.width / 2;
-    const goalY = t.y + t.vy * 0.45 - VIEW.height / 2;
+    const leadX = clamp(t.vx * 0.55, -VIEW.width * 0.32, VIEW.width * 0.32);
+    const leadY = clamp(t.vy * 0.55, -VIEW.height * 0.3, VIEW.height * 0.3);
+    const goalX = t.x + leadX - VIEW.width / 2;
+    const goalY = t.y + leadY - VIEW.height / 2;
     const ease = clamp(dt * 6, 0, 1);
     this.camX = lerp(this.camX, goalX, ease);
     this.camY = lerp(this.camY, goalY, ease);

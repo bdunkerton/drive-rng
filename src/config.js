@@ -28,9 +28,47 @@ export const KART = {
   grip: 5.5,            // how fast sideways sliding dies out (higher = grippier)
   // Once a kart is sliding sideways faster than this, it loses more grip and keeps
   // sliding until you straighten it out or slow down.
-  slideAt: 55,
-  slideGrip: 0.55,      // grip multiplier while sliding
+  slideAt: 65,
+  slideGrip: 0.7,      // grip multiplier while sliding
   mass: 1,
+};
+
+// Drafting: tuck in behind a kart and its wake pulls you along. Pull out and the extra
+// speed fades over a second or so: that's the slingshot.
+export const DRAFT = {
+  range: 110,           // how far back a kart's wake reaches, in pixels
+  minGap: 4,            // closer than this (nose to tail) and you're just touching
+  width: 9,             // half-width of the wake right behind a kart...
+  spread: 0.1,          // ...widening by this much for every pixel further back
+  align: 0.75,          // you have to be pointing roughly the same way (cosine of the angle)
+  leaderMinSpeed: 60,   // a kart going slower than this leaves no useful wake
+  fillSeconds: 0.9,     // time in the wake to reach a full draft
+  fadeSeconds: 1.1,     // time for a full draft to fade once you're out of the wake
+  topSpeed: 0.15,       // a full draft raises your top speed by this fraction
+  accel: 0.6,           // ...and your acceleration by this fraction
+};
+
+// Ramming: hit a kart with your nose, off its centreline, fast enough, and it spins.
+// A dead-centre hit from behind just shoves it forward (which helps it: aim better).
+export const RAM = {
+  minClosing: 28,       // closing speed (px/s) for your hit to count
+  // Rivals don't aim; they mostly rear-end each other in braking zones. Only a big hit
+  // from a rival spins anyone, so the pack isn't constantly spinning itself out.
+  botMinClosing: 80,
+  nose: 0.55,           // the hit has to land in front of you (cosine: within about 57 degrees)
+  offCentre: 0.3,       // how far off the target's centreline the hit must land (0 centre, 1 side)
+  notHeadOn: -0.25,     // the target can't be coming at you (cosine between headings)
+  keepSpeed: 0.92,      // on a spin, the rammer keeps this much of its forward speed
+  immunity: 1.2,        // seconds after a spin-out ends before that kart can be rammed again
+  // Rivals don't aim at you, but they do rear-end you in braking zones. Off for now so
+  // the test is whether hunting them feels good, not whether getting punted feels bad.
+  botsSpinPlayer: false,
+};
+
+// Keyboard steering eases in and out instead of snapping to full lock.
+export const STEER = {
+  attack: 6,            // per second toward full lock (about 0.17 s from centre)
+  release: 12,          // per second back toward centre (and through it when you swap sides)
 };
 
 export const SURFACE = {
@@ -81,7 +119,7 @@ export const FUSION = {
 
 export const HITS = {
   // Getting spun out (by a close BLAST).
-  spinSeconds: 0.9,
+  spinSeconds: 1.0,
   spinRate: 13,         // radians per second the kart twirls
   spinGrip: 0.15,       // grip multiplier while spinning (it slides)
   // Getting popped into the air (by a BOUNCE).
@@ -90,8 +128,8 @@ export const HITS = {
 
 export const AI = {
   // Each rival gets a skill between these. Skill scales top speed and cornering judgement.
-  skillMin: 0.88,
-  skillMax: 0.975,
+  skillMin: 0.86,
+  skillMax: 0.95,
   // How far ahead a rival plans its braking, and how much of its steering it dares use
   // in a corner (scaled by skill: the best rivals use the most).
   planAhead: 320,

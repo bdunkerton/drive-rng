@@ -2,7 +2,7 @@
 // `stepKart` is the driving physics. It knows nothing about the track; race.js
 // applies surfaces and the fence after each step.
 
-import { KART, ITEMS } from '../config.js';
+import { KART, ITEMS, DRAFT } from '../config.js';
 import { clamp, approach } from '../core/math.js';
 import { EffectList, STAT_KEYS } from './effects.js';
 
@@ -47,15 +47,24 @@ export class Kart {
     this.finished = false;
     this.finishTime = null;
 
+    // Drafting: 0 (none) to 1 (full), and whose wake you're in right now (or null).
+    this.draft = 0;
+    this.draftingBehind = null;
+
     // Bookkeeping for effects and rendering
     this.lastWallHit = -1;
     this.lastBump = -1;
+    this.spunAt = -Infinity;
   }
 
   /** Base stats with every active effect's multipliers applied. */
   stats() {
     const out = { ...this.base };
     for (const key of STAT_KEYS) out[key] = this.base[key] * this.effects.multiplier(key);
+    if (this.draft > 0) {
+      out.maxSpeed *= 1 + DRAFT.topSpeed * this.draft;
+      out.accel *= 1 + DRAFT.accel * this.draft;
+    }
     return out;
   }
 

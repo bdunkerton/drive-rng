@@ -44,9 +44,13 @@ export function hitKart(target, race, { by = null, kind = 'hit' } = {}) {
     return 'blocked';
   }
   target.addEffect(spinoutEffect(), race);
+  target.spunAt = race.time;
   race.events.emit('hit', { kart: target, by, kind });
   race.events.emit('sfx', { name: 'spin', kart: target });
-  if (by && by !== target) {
+  if (by && by !== target && kind === 'ram') {
+    toast(race, target, `RAMMED BY ${by.name}!`, 'bad');
+    toast(race, by, `RAMMED ${target.name}!`, 'good');
+  } else if (by && by !== target) {
     toast(race, target, `BLASTED BY ${by.name}!`, 'bad');
     toast(race, by, `BLASTED ${target.name}!`, 'good');
   } else {
