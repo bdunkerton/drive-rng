@@ -52,6 +52,7 @@ export class RaceScene {
       rivals: o.rivals,
       humanInput: this.humanInput,
       items: o.items ?? true,
+      obstacles: o.obstacles,
       // Until the player has fused once, their first two boxes set up a WHITE HOLE.
       firstPickups: o.items !== false && (o.tutorial || !remembered(FUSED_KEY)) ? ITEMS.firstPickups : null,
     });

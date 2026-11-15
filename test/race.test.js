@@ -139,3 +139,10 @@ test('items: false leaves the track with no item boxes, and the race still finis
   assert.ok(race.karts.every((k) => k.items.length === 0), 'nobody picked anything up');
   assert.ok(race.karts.some((k) => k.finished), 'someone finished');
 });
+
+test('no items means no tyre stacks either, unless asked for', () => {
+  const stacks = (r) => r.entities.filter((e) => e.kind === 'tires' || e.constructor.name === 'TireStack').length;
+  assert.equal(stacks(new Race({ track: meadow, seed: 1, rivals: 0, countdown: 0, humanInput: null, items: false })), 0);
+  assert.ok(stacks(new Race({ track: meadow, seed: 1, rivals: 0, countdown: 0, humanInput: null, items: false, obstacles: true })) > 0);
+  assert.ok(stacks(new Race({ track: meadow, seed: 1, rivals: 0, countdown: 0, humanInput: null })) > 0);
+});

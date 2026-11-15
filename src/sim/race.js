@@ -41,6 +41,7 @@ export class Race {
    * @param {number} [opts.countdown] seconds of countdown (0 to start immediately)
    * @param {string[]|null} [opts.firstPickups] the human's first item boxes give these (first race)
    * @param {boolean} [opts.items]  false: no item boxes at all, just driving (default true)
+   * @param {boolean} [opts.obstacles]  tyre stacks on the track (default: only when items are on)
    */
   constructor(opts) {
     this.track = opts.track instanceof Track ? opts.track : new Track(opts.track);
@@ -50,6 +51,8 @@ export class Race {
     this.laps = opts.laps ?? RACE.laps;
     this.humanInput = opts.humanInput ?? null;
     this.itemsOn = opts.items ?? true;
+    // Tyre stacks are there for items to play with (giants shove them, springs clear them).
+    this.obstaclesOn = opts.obstacles ?? this.itemsOn;
 
     this.phase = 'countdown'; // 'countdown' | 'racing' | 'done'
     this.countdownLeft = opts.countdown ?? RACE.countdownSeconds;
@@ -85,7 +88,7 @@ export class Race {
     /** @type {any[]} */
     this.entities = [];
     if (this.itemsOn) for (const box of placeItemBoxes(this.track)) this.spawn(box);
-    for (const stack of placeObstacles(this.track)) this.spawn(stack);
+    if (this.obstaclesOn) for (const stack of placeObstacles(this.track)) this.spawn(stack);
     this.updatePositions();
   }
 
