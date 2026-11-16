@@ -5,38 +5,47 @@
 // closest behind another kart (so there's always someone to chase, and a kart stuck at
 // the back doesn't get it over and over).
 
-import { POTATO, HITS } from '../config.js';
+import { POTATO, HITS, ROYALE } from '../config.js';
 import { spinoutEffect } from './hits.js';
 import { toast } from './toast.js';
 
 export class Potato {
-  constructor(race) {
+  /** @param {{ royale?: boolean, respawnIn?: number }} [opts] */
+  constructor(race, opts = {}) {
     this.race = race;
+    this.royale = !!opts.royale;
+    this.lockedFrom = null;   // royale: the kart that just gave it; no passing back until apart
+    this.retired = false;
     /** @type {import('./kart.js').Kart|null} */
     this.holder = null;
     this.fuse = 0;
     this.giver = null;        // who passed it to the holder
     this.immune = new Map();  // kart -> race time until which it can't be handed the potato
     this.heldFor = 0;
-    this.respawnIn = POTATO.firstDelay;
+    this.respawnIn = opts.respawnIn ?? POTATO.firstDelay;
     this.passes = 0;
     this.booms = 0;
   }
 
   /** Seconds of fuse left as a fraction of a full fuse (1 = fresh). */
   get fuseFraction() {
-    return this.holder ? Math.max(0, this.fuse / POTATO.fuseSeconds) : 0;
+    return this.holder ? Math.max(0, this.fuse / this.fuseSeconds) : 0;
+  }
+
+  get fuseSeconds() {
+    return this.royale ? ROYALE.fuseSeconds : POTATO.fuseSeconds;
   }
 
   /** Can this kart be handed the potato right now? */
   canTake(kart) {
-    if (kart.finished || kart.effects.hasTag('air') || kart.effects.hasTag('phase')) return false;
+    if (kart.finished || kart.out || kart.hasPotato || kart.effects.hasTag('air') || kart.effects.hasTag('phase')) return false;
+    if (this.royale) return kart !== this.lockedFrom;
     return (this.immune.get(kart) ?? -Infinity) <= this.race.time;
   }
 
   step(dt) {
     const race = this.race;
-    if (race.phase !== 'racing') return;
+    if (race.phase !== 'racing' || this.retired) return;
     if (!this.holder) {
       this.respawnIn -= dt;
       if (this.respawnIn <= 0) this.give(this.booms === 0 && this.passes === 0 ? this.lastPlace() : this.closestChaser(this.lastBoomed), null);
@@ -47,6 +56,9 @@ export class Potato {
       this.give(this.closestChaser(this.holder), null);
       return;
     }
+    // Royale: once the giver and the holder have separated, it can go back.
+    const lf = this.lockedFrom;
+    if (lf && (lf.out || Math.hypot(lf.x - this.holder.x, lf.y - this.holder.y) > lf.radius + this.holder.radius + 4)) this.lockedFrom = null;
     this.heldFor += dt;
     const before = Math.ceil(this.fuse);
     this.fuse -= dt;
@@ -54,9 +66,17 @@ export class Potato {
     if (this.fuse <= 0) this.boom();
   }
 
+  /** The holder left the race (royale): the potato goes back into the air. */
+  drop() {
+    if (this.holder) this.holder.hasPotato = false;
+    this.holder = null;
+    this.lockedFrom = null;
+    this.respawnIn = POTATO.respawnSeconds;
+  }
+
   /** Called by the race for every pair of karts touching this step. */
   touch(a, b) {
-    if (!this.holder || this.heldFor < POTATO.holdMinSeconds) return;
+    if (!this.holder || (!this.royale && this.heldFor < POTATO.holdMinSeconds)) return;
     if (a === this.holder && this.canTake(b)) this.pass(b);
     else if (b === this.holder && this.canTake(a)) this.pass(a);
   }
@@ -78,10 +98,11 @@ export class Potato {
       return;
     }
     to.hasPotato = true;
-    this.fuse = POTATO.fuseSeconds;
+    this.fuse = this.fuseSeconds;
     this.giver = from;
     this.heldFor = 0;
-    if (from) this.immune.set(from, this.race.time + POTATO.noTagBackSeconds);
+    this.lockedFrom = from;
+    if (from && !this.royale) this.immune.set(from, this.race.time + POTATO.noTagBackSeconds);
     const race = this.race;
     race.events.emit('potato:pass', { from, to });
     race.events.emit('sfx', { name: 'potato', kart: to });
@@ -103,6 +124,16 @@ export class Potato {
     this.respawnIn = POTATO.respawnSeconds;
     this.booms++;
     this.lastBoomed = kart;
+    this.lockedFrom = null;
+    if (this.royale) {
+      race.events.emit('potato:boom', { kart });
+      race.events.emit('blast', { x: kart.x, y: kart.y, radius: 26 });
+      race.events.emit('sfx', { name: 'blast' });
+      race.eliminate(kart);
+      // Too many potatoes for the karts left? This one doesn't come back.
+      if (race.potatoes.filter((p) => !p.retired).length > race.wantedPotatoes()) this.retired = true;
+      return;
+    }
     // The boom always lands, whatever the kart is doing (unless it's already spinning).
     if (!kart.effects.has('spinout')) {
       const spin = spinoutEffect();
@@ -138,7 +169,7 @@ export class Potato {
 
   /** The kart furthest back that's still racing (optionally not this one). */
   lastPlace(not = null) {
-    const racing = this.race.order.filter((k) => !k.finished && k !== not);
+    const racing = this.race.order.filter((k) => !k.finished && k !== not && this.canTake(k));
     return racing.length ? racing[racing.length - 1] : null;
   }
 }

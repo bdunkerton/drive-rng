@@ -10,7 +10,8 @@
 //   ?items=0     no item boxes: just the track and the driving (and no tyre stacks)
 //   ?obstacles=1 tyre stacks on (or =0 off) whatever the item setting
 //   ?potato=0    no hot potato (it's on by default when items are off)
-//   ?lab=1       the playtest lab (scenarios on the Test Oval, with feedback); ?lab=<id> jumps into one
+//   ?lab=1       the playtest lab (scenarios on the Test Oval, with feedback); ?lab=<id> jumps into one,
+//                ?lab=all lists archived scenarios too
 
 import { VIEW, SIM } from './config.js';
 import { Input } from './core/input.js';
@@ -79,7 +80,7 @@ export class Game {
   }
 
   toLab(select) {
-    this.setScene(new LabScene(this, { select }));
+    this.setScene(new LabScene(this, { select, all: this.options.lab === 'all' }));
   }
 
   /** Play one of the playtest lab's scenarios on the Test Oval. */

@@ -50,6 +50,7 @@ export class Kart {
     // Drafting: 0 (none) to 1 (full), and whose wake you're in right now (or null).
     this.draft = 0;
     this.draftingBehind = null;
+    this.draftTop = DRAFT.topSpeed; // top-speed bonus at full draft (slingshot drafting lowers it)
     // Holding the hot potato (see src/sim/potato.js).
     this.hasPotato = false;
     // Playtest lab: FOCUS meter (0-1), billiards "live" state.
@@ -69,7 +70,7 @@ export class Kart {
     const out = { ...this.base };
     for (const key of STAT_KEYS) out[key] = this.base[key] * this.effects.multiplier(key);
     if (this.draft > 0) {
-      out.maxSpeed *= 1 + DRAFT.topSpeed * this.draft;
+      out.maxSpeed *= 1 + this.draftTop * this.draft;
       out.accel *= 1 + DRAFT.accel * this.draft;
     }
     if (this.hasPotato) {

@@ -13,6 +13,8 @@ export class Telemetry {
       vaults: 0,
       shots: 0, chainHits: 0, bestChain: 0,
       nearMisses: 0, focusSeconds: 0,
+      bombUses: 0, charged: 0, bombSpins: 0, bombChains: 0,
+      huntedSpins: 0, outAt: null, potatoesMax: 0,
     };
     const t = this.t;
     const on = (type, fn) => race.events.on(type, fn);
@@ -40,6 +42,14 @@ export class Telemetry {
         t.bestChain = Math.max(t.bestChain, chain);
       }),
       on('nearmiss', ({ kart }) => kart === p && t.nearMisses++),
+      on('bomb:start', () => t.bombUses++),
+      on('bomb:detonate', ({ karts, spun, chained }) => {
+        t.charged += karts.length;
+        t.bombSpins += spun;
+        t.bombChains += chained;
+      }),
+      on('ram', ({ by, kart }) => kart === p && by.hunter && t.huntedSpins++),
+      on('royale:out', ({ kart }) => kart === p && (t.outAt = Math.round(race.time))),
       on('finish', ({ kart, place, time }) => {
         if (kart !== p) return;
         t.place = place;
@@ -54,6 +64,8 @@ export class Telemetry {
     if (!p || p.finished || this.race.phase !== 'racing') return;
     if (p.draft > 0.5) this.t.draftSeconds += dt;
     if (p.hasPotato) this.t.potatoSeconds += dt;
+    if (this.race.bullet?.active) this.t.focusSeconds += dt;
+    this.t.potatoesMax = Math.max(this.t.potatoesMax, this.race.potatoes?.filter((x) => x.holder).length ?? 0);
   }
 
   addFocus(realSeconds) {

@@ -41,9 +41,9 @@ test('the test oval is a sound track: wide, smooth, about 16 seconds a lap', () 
 test('every scenario races to the finish with 11 karts', () => {
   for (const s of SCENARIOS) {
     const race = new Race({ track: oval, seed: 7, rivals: 10, countdown: 0, humanInput: null, laps: 1, items: false, rules: { potato: false, ...s.rules } });
-    for (let i = 0; i < 60 * 60 && race.phase !== 'done'; i++) race.step(DT);
+    for (let i = 0; i < 60 * 240 && race.phase !== 'done'; i++) race.step(DT);
     assert.equal(race.phase, 'done', s.id);
-    assert.equal(race.karts.length, 11);
+    assert.equal(race.karts.length + race.out.length, 11);
   }
 });
 
@@ -123,4 +123,106 @@ test('feedback reports read well and fit in a GitHub link', () => {
   const { url } = issueUrl(entries);
   assert.ok(url.length <= 7800, `url ${url.length}`);
   assert.match(url, /labels=playtest/);
+});
+
+// --- Batch 2 -----------------------------------------------------------------
+
+test('slingshot drafting: tucked in only keeps pace; pulling out fires a burst and spends the charge', () => {
+  const { race, me, rival } = pair({ slingshot: true }, { gap: 25, ahead: 150, behind: 150 });
+  rival.controller = { update(k) { k.controls.throttle = 1; k.controls.steer = 0; k.controls.brake = 0; } };
+  for (let i = 0; i < 90; i++) race.step(DT);
+  assert.ok(me.draft > 0.8, `charge ${me.draft}`);
+  assert.ok(me.stats().maxSpeed < 172 * 1.08, 'in the wake you only hang on');
+  let fired = false;
+  race.events.on('draft:slingshot', ({ kart }) => (fired = kart === me));
+  me.y += 40; // swing out of the wake
+  race.applyTrack(me);
+  race.step(DT);
+  assert.ok(fired);
+  assert.equal(me.draft, 0);
+  assert.ok(me.effects.has('slingshot'));
+  assert.ok(me.stats().maxSpeed > 172 * 1.25);
+});
+
+test('time bomb: holding focus slows everyone else; touched karts blow when you let go', () => {
+  const { race, me, rival, input } = pair({ timebomb: true }, { gap: 1, side: 0, ahead: 100, behind: 150 });
+  me.focus = 1;
+  input.focus = true;
+  const rx = rival.x;
+  const mx = me.x;
+  race.step(DT);
+  assert.ok(race.bullet.active);
+  assert.ok(Math.abs(rival.x - rx) < Math.abs(me.x - mx) * 0.6, 'the world moves slower than you');
+  for (let i = 0; i < 20 && !rival.charged; i++) race.step(DT);
+  assert.ok(rival.charged, 'touching charged it');
+  let boom = null;
+  race.events.on('bomb:detonate', (e) => (boom = e));
+  input.focus = false;
+  race.step(DT);
+  assert.ok(!race.bullet.active);
+  assert.equal(boom.karts.length, 1);
+  assert.ok(rival.effects.has('spinout'));
+});
+
+test('hunters go after the player and their rams can spin you', () => {
+  const race = new Race({ track: oval, seed: 3, rivals: 10, countdown: 0, humanInput: { throttle: 0, brake: 0, steer: 0, useItem: false }, items: false, rules: { potato: false, hunters: 3 } });
+  assert.equal(race.karts.filter((k) => k.hunter).length, 3);
+  assert.ok(!race.player.hunter);
+  // A hunter right behind a crawling player.
+  const h = race.karts.find((k) => k.hunter);
+  const p = race.player;
+  const pt = race.track.pointAt(400);
+  const fx = Math.cos(pt.angle);
+  const fy = Math.sin(pt.angle);
+  p.x = pt.x; p.y = pt.y; p.heading = pt.angle; p.vx = fx * 40; p.vy = fy * 40;
+  h.x = pt.x - fx * 60; h.y = pt.y - fy * 60; h.heading = pt.angle; h.vx = fx * 150; h.vy = fy * 150;
+  for (const k of race.karts) if (k !== p && k !== h) { k.x = pt.x - fx * 600; k.y = pt.y - fy * 600; }
+  for (const k of race.karts) race.applyTrack(k);
+  let spun = false;
+  race.events.on('ram', ({ by, kart }) => (spun = spun || (by === h && kart === p)));
+  for (let i = 0; i < 60 * 3 && !spun; i++) race.step(DT);
+  assert.ok(spun, 'the hunter PITs the player');
+});
+
+test('potato royale: a boom knocks the holder out, potatoes escalate, last kart standing ends it', () => {
+  const race = new Race({ track: oval, seed: 5, rivals: 10, countdown: 0, humanInput: null, laps: 99, items: false, rules: { potato: false, royale: true } });
+  let most = 0;
+  for (let i = 0; i < 60 * 300 && race.phase !== 'done'; i++) {
+    race.step(DT);
+    most = Math.max(most, race.potatoes.filter((p) => !p.retired).length);
+    for (const k of race.karts) assert.ok(!k.out);
+    const holders = race.potatoes.filter((p) => p.holder).map((p) => p.holder);
+    assert.equal(new Set(holders).size, holders.length, 'nobody holds two');
+  }
+  assert.equal(race.phase, 'done');
+  assert.equal(race.karts.length, 1);
+  assert.equal(race.out.length, 10);
+  assert.equal(new Set(race.out).size, 10, 'each kart knocked out once');
+  assert.ok(most >= 2, `potatoes escalated to ${most}`);
+  const r = race.results();
+  assert.equal(r[0].position, 1);
+  assert.ok(!r[0].out && r.slice(1).every((x) => x.out));
+});
+
+test('potato royale: swaps are instant, but not straight back until you separate', () => {
+  const race = new Race({ track: oval, seed: 5, rivals: 2, countdown: 0, humanInput: null, items: false, rules: { potato: false, royale: true } });
+  const [a, b] = race.karts;
+  const pot = race.potatoes[0];
+  pot.give(a, null);
+  pot.touch(a, b);
+  assert.equal(pot.holder, b, 'instant');
+  race.steps++;
+  pot.touch(a, b);
+  assert.equal(pot.holder, b, 'no straight pass-back');
+  b.x = a.x + 100;
+  pot.step(DT);
+  race.steps++;
+  pot.touch(a, b);
+  assert.equal(pot.holder, a, 'after separating it can go back');
+});
+
+test('the lab menu shows the current batch; batch 1 is archived', async () => {
+  const { CURRENT_BATCH } = await import('../src/lab/scenarios.js');
+  assert.equal(CURRENT_BATCH, 2);
+  assert.deepEqual(SCENARIOS.filter((s) => s.batch === 2).map((s) => s.id), ['pack2', 'royale', 'timebomb', 'hunted']);
 });

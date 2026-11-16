@@ -140,6 +140,8 @@ export class RaceScene {
     // Snap back to centre faster than steering out, which feels better on a keyboard.
     const rate = want === 0 || Math.sign(want) !== Math.sign(h.steer) ? STEER_RATE * 1.6 : STEER_RATE;
     h.steer = approach(h.steer, want, rate * dt);
+    // TIME BOMB: the race reads this and does the rest.
+    h.focus = input.isDown('focus');
     // FOCUS (bullet time): hold the key while there's focus in the bar.
     const p0 = this.race.player;
     this.focusing = !!(this.race.rules.focus && p0 && !p0.finished && this.race.phase === 'racing' && p0.focus > 0 && input.isDown('focus'));
@@ -186,7 +188,7 @@ export class RaceScene {
 
   draw(g) {
     this.view.draw(g);
-    if (this.focusing) {
+    if (this.focusing || this.race.bullet?.active) {
       // Bullet time: the world goes cool and dim at the edges.
       g.fillStyle = 'rgba(40, 20, 90, 0.18)';
       g.fillRect(0, 0, VIEW.width, VIEW.height);
@@ -238,7 +240,7 @@ export class RaceScene {
       g.fillStyle = KART_COLOURS[r.color]?.body ?? PAL.white;
       g.fillRect(x + 36, yy, 3, 5);
       drawText(g, r.name, x + 43, yy, { color: colour });
-      drawText(g, r.finished ? formatTime(r.time) : `LAP ${r.lapsDone + 1}`, x + 118, yy, { color: colour });
+      drawText(g, r.out ? 'OUT' : r.finished ? formatTime(r.time) : `LAP ${r.lapsDone + 1}`, x + 118, yy, { color: colour });
       drawText(g, formatTime(r.bestLap), x + 166, yy, { color: colour });
     });
     if (Math.floor(this.clock * 2) % 2 === 0) {
