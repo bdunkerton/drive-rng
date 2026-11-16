@@ -47,7 +47,9 @@ export function hitKart(target, race, { by = null, kind = 'hit' } = {}) {
   target.spunAt = race.time;
   race.events.emit('hit', { kart: target, by, kind });
   race.events.emit('sfx', { name: 'spin', kart: target });
-  if (by && by !== target && kind === 'ram') {
+  if (by && by !== target && kind === 'bomb') {
+    toast(race, target, `BLOWN UP BY ${by.name}!`, 'bad');
+  } else if (by && by !== target && kind === 'ram') {
     toast(race, target, `RAMMED BY ${by.name}!`, 'bad');
     toast(race, by, `RAMMED ${target.name}!`, 'good');
   } else if (by && by !== target) {

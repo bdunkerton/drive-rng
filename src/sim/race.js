@@ -2,7 +2,7 @@
 // It runs in fixed steps and has no idea a browser exists, so it runs the same in
 // the game, in tests and in the headless simulator (npm run sim).
 
-import { RACE, SURFACE, WALL, BUMP, SIM, DRAFT, RAM, HITS, LEAP, BILLIARDS, FOCUS } from '../config.js';
+import { RACE, SURFACE, WALL, BUMP, SIM, DRAFT, RAM, HITS, LEAP, BILLIARDS, FOCUS, SLINGSHOT, HUNT, TIMEBOMB, POTATO, ROYALE } from '../config.js';
 import { Rng } from '../core/rng.js';
 import { Events } from '../core/events.js';
 import { loopDelta, sign } from '../core/math.js';
@@ -41,6 +41,10 @@ export const DEFAULT_RULES = {
   leapfrog: false,  // drive into a spinning kart to vault over it
   billiards: false, // rams hand your speed to the target, which can spin whoever it hits
   focus: false,     // near misses fill FOCUS; hold it for slow motion
+  slingshot: false, // drafting only keeps pace and builds charge; pulling out fires a burst
+  hunters: 0,       // this many rivals hunt the player (and their rams can spin you)
+  timebomb: false,  // hold FOCUS: the world crawls, karts you touch are charged, then go off
+  royale: false,    // potato elimination: a boom knocks you out, last kart standing wins
 };
 
 const rubberOf = (k) => k.effects.active.find((e) => e.id === 'rubber')?.bounce ?? 0;
@@ -72,7 +76,11 @@ export class Race {
     // Tyre stacks are there for items to play with (giants shove them, springs clear them).
     this.obstaclesOn = opts.obstacles ?? this.itemsOn;
     this.rules = { ...DEFAULT_RULES, potato: opts.potato ?? !this.itemsOn, ...opts.rules };
-    this.potato = this.rules.potato ? new Potato(this) : null;
+    // Potatoes: one normally; Potato Royale adds more as karts drop out (see eliminate).
+    if (this.rules.royale) this.laps = 999; // royale ends when one kart is left, not on laps
+    this.potatoes = this.rules.potato || this.rules.royale ? [new Potato(this, { royale: this.rules.royale })] : [];
+    this.potato = this.potatoes[0] ?? null;
+    this.out = []; // Royale: karts knocked out, in order
 
     this.phase = 'countdown'; // 'countdown' | 'racing' | 'done'
     this.countdownLeft = opts.countdown ?? RACE.countdownSeconds;
@@ -99,6 +107,17 @@ export class Race {
       this.karts.push(kart);
     }
     this.player = this.karts.find((k) => k.isPlayer) ?? null;
+    if (this.rules.slingshot) for (const k of this.karts) k.draftTop = SLINGSHOT.inWake;
+    this.bullet = { active: false, charged: [] };
+    if (this.rules.timebomb && this.player) this.player.focus = TIMEBOMB.startWith;
+    // Hunters: the rivals starting nearest the back (closest to you) come after you.
+    if (this.rules.hunters && this.player) {
+      const rivals = this.karts.filter((k) => !k.isPlayer).sort((a, b) => a.progress - b.progress);
+      for (const k of rivals.slice(0, this.rules.hunters)) {
+        k.hunter = true;
+        k.controller = new AIDriver(aiRng.fork(`hunter${k.id}`), { skill: HUNT.skill });
+      }
+    }
     if (this.player && opts.firstPickups?.length) {
       this.player.scriptedPickups = [...opts.firstPickups];
       this.player.tutorialFuse = true;
@@ -133,6 +152,53 @@ export class Race {
     return this.order.filter((k) => !k.finished);
   }
 
+  /** The potato this kart is holding, if any. */
+  potatoOf(kart) {
+    return kart.hasPotato ? (this.potatoes.find((p) => p.holder === kart) ?? null) : null;
+  }
+
+  /** Royale: how many potatoes there should be for the karts still in. */
+  wantedPotatoes() {
+    const left = this.karts.length;
+    return Math.max(1, Math.min(1 + this.out.length, ROYALE.maxPotatoes, Math.floor(left / ROYALE.kartsPerPotato)));
+  }
+
+  /** Royale: knock a kart out of the race. It leaves the track; more potatoes may join. */
+  eliminate(kart) {
+    if (kart.out) return;
+    for (const p of this.potatoes) if (p.holder === kart) p.drop();
+    kart.out = true;
+    kart.outAt = this.time;
+    kart.hasPotato = false;
+    this.karts = this.karts.filter((k) => k !== kart);
+    this.out.push(kart);
+    const left = this.karts.length;
+    this.events.emit('royale:out', { kart, left });
+    if (this.player && !kart.isPlayer) this.events.emit('toast', { kart: this.player, text: `${kart.name} IS OUT! ${left} LEFT`, colour: 'gold' });
+    if (kart.isPlayer) this.events.emit('toast', { kart, text: 'BOOM! YOU ARE OUT!', colour: 'bad' });
+    // Escalate: add potatoes up to the number wanted for the karts left.
+    const live = this.potatoes.filter((p) => !p.retired).length;
+    for (let i = live; i < this.wantedPotatoes(); i++) {
+      this.potatoes.push(new Potato(this, { royale: true, respawnIn: POTATO.respawnSeconds + 0.5 * i }));
+      this.events.emit('royale:potato', { count: i + 1 });
+    }
+    if (left <= 1 || kart.isPlayer) this.endRoyale();
+  }
+
+  /** Royale is over (one kart left, or the player is out): the survivors finish in order. */
+  endRoyale() {
+    this.updatePositions();
+    for (const k of this.order) {
+      if (k.out || k.finished) continue;
+      k.finished = true;
+      k.finishTime = this.time;
+      this.finishOrder.push(k);
+    }
+    this.phase = 'done';
+    this.updatePositions();
+    this.events.emit('race:end', { results: this.results() });
+  }
+
   /** Karts still racing that are ahead of this one on the course, nearest first. */
   kartsAhead(kart) {
     return this.karts
@@ -165,6 +231,7 @@ export class Race {
       if (this.countdownLeft <= 0) {
         this.phase = 'racing';
         this.events.emit('go', {});
+        if (this.rules.hunters && this.player) this.events.emit('toast', { kart: this.player, text: `${this.rules.hunters} HUNTERS ARE AFTER YOU!`, colour: 'bad' });
       }
       for (const e of this.entities) e.update(dt, this);
       return;
@@ -173,10 +240,15 @@ export class Race {
     this.time += dt;
 
     if (this.rules.draft) this.updateDrafts(dt);
-    for (const kart of this.karts) this.stepOne(kart, dt);
+    if (this.rules.timebomb) this.updateTimeBomb(dt);
+    const slow = this.bullet.active;
+    for (const kart of this.karts) {
+      const scale = !slow ? 1 : kart === this.player ? TIMEBOMB.playerScale : TIMEBOMB.worldScale;
+      this.stepOne(kart, dt * scale);
+    }
     this.resolveBumps();
-    if (this.rules.focus) this.updateFocus(dt);
-    this.potato?.step(dt);
+    if (this.rules.focus || (this.rules.timebomb && !this.bullet.active)) this.updateFocus(dt);
+    for (const p of this.potatoes) p.step(dt);
     resolveSolids(this);
 
     for (const e of this.entities) {
@@ -291,10 +363,21 @@ export class Race {
       }
       const was = k.draftingBehind;
       k.draftingBehind = leader;
-      if (leader) k.draft = Math.min(1, k.draft + dt / DRAFT.fillSeconds);
+      const fill = this.rules.slingshot ? SLINGSHOT.fillSeconds : DRAFT.fillSeconds;
+      if (leader) k.draft = Math.min(1, k.draft + dt / fill);
       else k.draft = Math.max(0, k.draft - dt / DRAFT.fadeSeconds);
       if (leader && !was) this.events.emit('draft:start', { kart: k, leader });
-      if (!leader && was && k.draft > 0.5) this.events.emit('draft:slingshot', { kart: k, from: was });
+      if (this.rules.slingshot) {
+        // Pulling out with charge fires the slingshot (and spends the charge).
+        if (!leader && was && k.draft >= SLINGSHOT.minCharge) {
+          const charge = k.draft;
+          k.draft = 0;
+          k.addEffect({ id: 'slingshot', duration: SLINGSHOT.seconds, tags: ['boost'], stacking: 'refresh', modifiers: { maxSpeed: 1 + SLINGSHOT.topSpeed * charge, accel: 1 + (SLINGSHOT.accel - 1) * charge } }, this);
+          k.kick(SLINGSHOT.kick * charge);
+          this.events.emit('draft:slingshot', { kart: k, from: was, charge });
+          this.events.emit('sfx', { name: 'boost', kart: k });
+        }
+      } else if (!leader && was && k.draft > 0.5) this.events.emit('draft:slingshot', { kart: k, from: was });
     }
   }
 
@@ -303,9 +386,10 @@ export class Race {
    * `closing` is how fast they came together. Returns true if the target spun.
    */
   tryRam(attacker, target, nx, ny, closing, attackerFwdBefore) {
-    if (closing < (attacker.isPlayer ? RAM.minClosing : RAM.botMinClosing)) return false;
+    const aimed = attacker.isPlayer || (attacker.hunter && target.isPlayer);
+    if (closing < (aimed ? RAM.minClosing : RAM.botMinClosing)) return false;
     if (attacker.effects.has('spinout') || target.finished) return false;
-    if (!RAM.botsSpinPlayer && target.isPlayer && !attacker.isPlayer) return false;
+    if (!RAM.botsSpinPlayer && target.isPlayer && !attacker.isPlayer && !attacker.hunter) return false;
     if (this.time - target.spunAt < HITS.spinSeconds + RAM.immunity) return false;
     const ax = Math.cos(attacker.heading);
     const ay = Math.sin(attacker.heading);
@@ -328,6 +412,7 @@ export class Race {
     const keep = attackerFwdBefore * RAM.keepSpeed;
     if (fwd < keep) attacker.kick(keep - fwd);
     this.events.emit('ram', { by: attacker, kart: target, closing });
+    if (attacker.hunter && target.isPlayer) attacker.huntCooldownUntil = this.time + HUNT.cooldown;
     return true;
   }
 
@@ -398,6 +483,58 @@ export class Race {
     return true;
   }
 
+  /**
+   * TIME BOMB rule: holding FOCUS (humanInput.focus) with focus in the bar slows everyone
+   * but the player; letting go, or running dry, sets off every kart charged meanwhile.
+   */
+  updateTimeBomb(dt) {
+    const p = this.player;
+    if (!p) return;
+    const want = this.phase === 'racing' && !p.finished && !!this.humanInput?.focus && p.focus > 0;
+    if (want) {
+      if (!this.bullet.active) this.events.emit('bomb:start', { kart: p });
+      this.bullet.active = true;
+      p.focus = Math.max(0, p.focus - TIMEBOMB.drainPerSecond * dt);
+      return;
+    }
+    if (this.bullet.active) {
+      this.bullet.active = false;
+      this.detonate();
+    }
+    if (this.phase === 'racing' && !p.finished) p.focus = Math.min(1, p.focus + TIMEBOMB.passivePerSecond * dt);
+  }
+
+  /** Every charged kart goes off; each blast throws its neighbours and spins the closest. */
+  detonate() {
+    const p = this.player;
+    const charged = this.bullet.charged;
+    this.bullet.charged = [];
+    let spun = 0;
+    let chained = 0;
+    const blasted = new Set();
+    for (const k of charged) {
+      k.charged = false;
+      if (hitKart(k, this, { by: p, kind: 'bomb' }) === 'hit') spun++;
+      blasted.add(k);
+      this.events.emit('blast', { x: k.x, y: k.y, radius: TIMEBOMB.blastRadius });
+      for (const o of this.karts) {
+        if (o === k || o === p || o.finished) continue;
+        const d = Math.hypot(o.x - k.x, o.y - k.y);
+        if (d > TIMEBOMB.blastRadius) continue;
+        const push = TIMEBOMB.blastPush * (1 - d / TIMEBOMB.blastRadius);
+        o.vx += ((o.x - k.x) / (d || 1)) * push;
+        o.vy += ((o.y - k.y) / (d || 1)) * push;
+        if (d < TIMEBOMB.chainRadius && !blasted.has(o) && !o.charged && hitKart(o, this, { by: p, kind: 'bomb' }) === 'hit') chained++;
+      }
+    }
+    this.events.emit('bomb:detonate', { kart: p, karts: charged, spun, chained });
+    if (charged.length) {
+      this.events.emit('sfx', { name: 'blast' });
+      const total = spun + chained;
+      this.events.emit('toast', { kart: p, text: chained ? `${total}X BOOM! (${chained} CHAINED)` : `${total}X BOOM!`, colour: 'good' });
+    }
+  }
+
   /** FOCUS rule: near misses with other karts (and hugging the fence fast) fill the player's FOCUS. */
   updateFocus(dt) {
     const p = this.player;
@@ -435,7 +572,17 @@ export class Race {
         const r = a.radius + b.radius;
         const d2 = dx * dx + dy * dy;
         if (d2 >= r * r || d2 === 0) continue;
-        this.potato?.touch(a, b);
+        for (const p of this.potatoes) p.touch(a, b);
+        if (this.bullet.active) {
+          const p = this.player;
+          const other = a === p ? b : b === p ? a : null;
+          if (other && !other.charged && !other.finished) {
+            other.charged = true;
+            this.bullet.charged.push(other);
+            this.events.emit('bomb:charge', { kart: other, count: this.bullet.charged.length });
+            this.events.emit('sfx', { name: 'grab', kart: p });
+          }
+        }
         if (this.rules.leapfrog && (this.tryVault(a, b) || this.tryVault(b, a))) continue;
         const d = Math.sqrt(d2);
         const nx = dx / d;
@@ -501,12 +648,14 @@ export class Race {
   }
 
   updatePositions() {
-    const order = [...this.karts].sort((a, b) => {
+    const racing = [...this.karts].sort((a, b) => {
       if (a.finished && b.finished) return a.finishTime - b.finishTime;
       if (a.finished) return -1;
       if (b.finished) return 1;
       return b.progress - a.progress;
     });
+    // Royale: knocked-out karts go to the bottom, the most recent highest.
+    const order = [...racing, ...[...(this.out ?? [])].reverse()];
     order.forEach((k, i) => (k.position = i + 1));
     this.order = order;
   }
@@ -534,6 +683,7 @@ export class Race {
       lapTimes: [...k.lapTimes],
       bestLap: k.lapTimes.length ? Math.min(...k.lapTimes) : null,
       lapsDone: k.lapsDone,
+      out: !!k.out,
     }));
   }
 }

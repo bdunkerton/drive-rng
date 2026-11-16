@@ -48,6 +48,42 @@ export const DRAFT = {
   accel: 0.6,           // ...and your acceleration by this fraction
 };
 
+// Slingshot drafting (a lab rule): sitting in a wake only keeps you with the kart ahead
+// while charge builds. The pay-off is pulling OUT: a burst of speed scaled by the charge.
+export const SLINGSHOT = {
+  inWake: 0.05,         // top-speed bonus while tucked in (just enough to hang on)
+  fillSeconds: 1.6,     // time in a wake to reach full charge
+  minCharge: 0.35,      // pull out with at least this much charge to slingshot
+  seconds: 1.3,         // how long the burst lasts
+  topSpeed: 0.4,        // full charge: +40% top speed during the burst
+  accel: 2.5,           // ...and this much harder acceleration
+  kick: 45,             // instant extra speed at full charge
+  aiPullOutAt: 0.8,     // rivals pull out to pass once they've this much charge
+};
+
+// Time Bomb (a lab rule, bullet time v2): hold FOCUS and the world crawls while you keep
+// most of your speed. Every kart you touch meanwhile is charged; when you let go (or run
+// out) they all go off, and each blast can spin karts next to it.
+export const TIMEBOMB = {
+  worldScale: 0.25,     // everyone else runs at this speed while you focus...
+  playerScale: 0.85,    // ...and you at this (so about 3.4x as fast as them)
+  drainPerSecond: 0.28, // a full bar lasts about 3.5 s
+  passivePerSecond: 0.035, // the bar also fills slowly on its own
+  startWith: 0.4,
+  blastRadius: 30,      // karts this close to a detonation get thrown...
+  blastPush: 110,
+  chainRadius: 20,      // ...and this close also spin (chain reactions)
+};
+
+// Hunters (a lab rule): a few rivals come after the player and aim for a rear corner.
+export const HUNT = {
+  range: 220,           // a hunter goes after you from this far back (course distance)
+  aimFrom: 55,          // closer than this it drives straight at your rear corner
+  blockRange: 50,       // a hunter just ahead of you moves into your lane
+  cooldown: 5,          // after spinning you, a hunter backs off this long
+  skill: 0.95,          // hunters drive at this skill
+};
+
 // Ramming: hit a kart with your nose, off its centreline, fast enough, and it spins.
 // A dead-centre hit from behind just shoves it forward (which helps it: aim better).
 export const RAM = {
@@ -109,6 +145,15 @@ export const POTATO = {
   // and how close the holder has to be behind before a rival starts running.
   aiChaseRange: 220,
   aiFleeRange: 110,
+};
+
+// Potato Royale (a lab rule): a boom knocks the holder out of the race; more potatoes join
+// as karts drop out; swaps are instant (you just can't pass straight back to the kart that
+// gave it to you until you've separated). Last kart standing wins.
+export const ROYALE = {
+  fuseSeconds: 7,
+  maxPotatoes: 3,
+  kartsPerPotato: 3,    // at most one potato per this many karts still in
 };
 
 export const SURFACE = {

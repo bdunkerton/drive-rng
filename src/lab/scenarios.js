@@ -3,7 +3,9 @@
 // list and bump `batch`, so feedback can say which round of ideas it was about.
 // `rules` switches mechanics on for the race (see DEFAULT_RULES in src/sim/race.js).
 
-export const LAB_VERSION = 'lab-1';
+export const LAB_VERSION = 'lab-2';
+/** The lab menu shows this batch (?lab=all shows every scenario, archived ones too). */
+export const CURRENT_BATCH = 2;
 
 /**
  * @typedef {{ id: string, batch: number, name: string, pitch: string, how: string[],
@@ -56,6 +58,44 @@ export const SCENARIOS = [
     how: ['NEAR MISSES FILL THE BAR', 'HOLD SHIFT (OR SPACE) TO FOCUS'],
     rules: { draft: true, ram: true, focus: true },
     question: 'DOES SLOW-MO MAKE YOU FEEL COOL, OR JUST SLOW?',
+  },
+  // --- Batch 2 (after playtest #7): break up the frozen pack, give every mode stakes. ---
+  {
+    id: 'pack2',
+    batch: 2,
+    name: 'PACK RACE 2',
+    pitch: 'SITTING IN A DRAFT NOW ONLY KEEPS YOU ON THE KART AHEAD WHILE CHARGE BUILDS. PULL OUT TO FIRE IT: A SLINGSHOT PAST. RIVALS DO IT TOO.',
+    how: ['TUCK IN, WATCH THE BAR FILL', 'STEER OUT TO SLINGSHOT'],
+    rules: { draft: true, ram: true, slingshot: true },
+    question: 'DOES THE PACK MOVE NOW? CAN YOU GET BACK INTO IT?',
+  },
+  {
+    id: 'royale',
+    batch: 2,
+    name: 'POTATO ROYALE',
+    pitch: 'NO LAPS. A BOOM KNOCKS YOU OUT. MORE POTATOES JOIN AS KARTS DROP (UP TO 3). SWAPS ARE INSTANT. LAST KART STANDING WINS.',
+    how: ['IT STARTS WITH YOU: 7 SECONDS', 'NO PASSING BACK TILL YOU SPLIT'],
+    rules: { draft: true, ram: true, slingshot: true, royale: true },
+    laps: 99,
+    question: 'DOES IT ESCALATE? IS SURVIVING FUN AT THE FRONT TOO?',
+  },
+  {
+    id: 'timebomb',
+    batch: 2,
+    name: 'TIME BOMB',
+    pitch: 'HOLD SHIFT: THE WORLD CRAWLS, YOU KEEP MOST OF YOUR SPEED. EVERY KART YOU TOUCH GETS CHARGED. LET GO AND THEY ALL BLOW, SPINNING WHOEVER IS NEXT TO THEM.',
+    how: ['BAR FILLS BY ITSELF AND ON NEAR MISSES', 'TAG A BUNCH, THEN LET GO'],
+    rules: { draft: true, ram: true, slingshot: true, timebomb: true },
+    question: 'DOES SETTING UP A BIG CHAIN FEEL LIKE YOUR MOVE?',
+  },
+  {
+    id: 'hunted',
+    batch: 2,
+    name: 'HUNTED',
+    pitch: 'THREE RIVALS (RED MARKERS) ARE OUT TO SPIN YOU: THEY CHASE YOU DOWN AND AIM FOR A REAR CORNER. YOU CAN SPIN THEM BACK.',
+    how: ['DONT LET ONE SIT ON YOUR BUMPER', 'A HUNTER JUST AHEAD WILL BLOCK'],
+    rules: { draft: true, ram: true, slingshot: true, hunters: 3 },
+    question: 'DOES BEING HUNTED MAKE DRIVING TENSE IN A GOOD WAY?',
   },
 ];
 

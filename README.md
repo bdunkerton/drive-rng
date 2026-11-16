@@ -116,15 +116,18 @@ The rivals play the same game: they pick up, fuse, cycle and use items, and each
 
 Small, replayable scenarios, each trying out one mechanic on the **Test Oval** (a wide stadium oval, about 16 seconds a lap) with a pack of 11 karts. Pick one, play it as many times as you like (Enter after the results races again), then press **F** (or pick FEEDBACK from the pause menu) to vote KEEP IT / MEH / DROP IT, tag it and write a note. Feedback is saved in the browser along with what happened in each run (place, rams, potato passes, vaults, near misses and so on). **SEND TO CLAUDE** at the bottom of the lab posts everything unsent as a GitHub issue labelled `playtest` (or copies it to paste into a chat).
 
-Scenarios live in `src/lab/scenarios.js`; each one switches race rules on (`draft`, `ram`, `potato`, `leapfrog`, `billiards`, `focus`; see `DEFAULT_RULES` in `src/sim/race.js`). `?lab=<id>` jumps straight into one, e.g. `?lab=billiards`.
+Scenarios live in `src/lab/scenarios.js`; each one switches race rules on (`draft`, `ram`, `potato`, `leapfrog`, `billiards`, `focus`, `slingshot`, `hunters`, `timebomb`, `royale`; see `DEFAULT_RULES` in `src/sim/race.js`). The menu shows the current batch; `?lab=all` lists archived ones too, and `?lab=<id>` jumps straight into one, e.g. `?lab=royale`.
+
+**Batch 2 (current, after playtest #7):**
 
 | Scenario | Tries out |
 | --- | --- |
-| PACK RACE | The control: drafting and ramming, nothing else |
-| HOT POTATO | One potato always in play; touch to pass it |
-| LEAPFROG | Drive into a spinning kart to vault over it |
-| BILLIARDS | Rams hand your speed to the kart you hit, which spins whoever it hits |
-| BULLET TIME | Near misses fill FOCUS; hold Shift (or Space) for slow motion |
+| PACK RACE 2 | Slingshot drafting: a wake only keeps pace while charge builds; pulling out fires a burst. Rivals do it too |
+| POTATO ROYALE | No laps: a boom knocks you out, potatoes escalate (up to 3) as karts drop, instant swaps, last kart standing |
+| TIME BOMB | Hold Shift: the world crawls while you keep most of your speed; karts you touch are charged and blow when you let go, spinning their neighbours |
+| HUNTED | Three red-marked rivals chase you and aim for a rear corner; their rams can spin you |
+
+**Batch 1 (archived):** PACK RACE (control), HOT POTATO, LEAPFROG, BILLIARDS, BULLET TIME.
 
 ### URL options
 

@@ -80,7 +80,8 @@ export class Hud {
     const p = race.player ?? race.order[0];
 
     // Lap and time, top left.
-    drawText(g, `LAP ${p.currentLap(race.laps)}/${race.laps}`, 6, 6, { color: PAL.white });
+    if (race.rules?.royale) drawText(g, `${race.karts.length} LEFT`, 6, 6, { color: PAL.gold });
+    else drawText(g, `LAP ${p.currentLap(race.laps)}/${race.laps}`, 6, 6, { color: PAL.white });
     drawText(g, formatTime(p.finished ? p.finishTime : race.time), 6, 14, { color: PAL.white });
     const best = p.lapTimes.length ? Math.min(...p.lapTimes) : null;
     if (best !== null) drawText(g, `BEST ${formatTime(best)}`, 6, 22, { color: PAL.silver });
@@ -93,8 +94,8 @@ export class Hud {
       g.fillRect(5, y - 1, 5, 7);
       g.fillStyle = col;
       g.fillRect(6, y, 3, 5);
-      drawText(g, `${k.position} ${k.name}`, 13, y, { color: k.isPlayer ? PAL.gold : PAL.white });
-      y += 8;
+      drawText(g, `${k.position} ${k.name}${k.out ? ' OUT' : ''}`, 13, y, { color: k.out ? '#6a6e78' : k.isPlayer ? PAL.gold : PAL.white });
+      y += race.order.length > 9 ? 7 : 8;
     }
 
     // Position, top right.
@@ -107,14 +108,14 @@ export class Hud {
 
     // Item hand (or the potato), top centre, and the messages under it.
     if (race.player && race.itemsOn) this.drawHand(g, race.player);
-    if (race.potato) this.drawPotato(g, race.potato);
+    if (race.potatoes?.length) this.drawPotatoes(g, race);
     this.drawToasts(g);
 
     // Speed bar, bottom left.
     if (race.player) this.drawSpeed(g, race.player);
 
     // FOCUS meter, bottom centre (bullet time scenarios).
-    if (race.player && race.rules?.focus) this.drawFocus(g, race.player);
+    if (race.player && (race.rules?.focus || race.rules?.timebomb)) this.drawFocus(g, race.player);
 
     // Minimap, bottom right.
     this.drawMinimap(g);
@@ -176,6 +177,15 @@ export class Hud {
     }
   }
 
+  /** Your potato's fuse if you have one; otherwise who has them. */
+  drawPotatoes(g, race) {
+    const live = race.potatoes.filter((p) => p.holder);
+    const mine = race.player && race.potatoOf(race.player);
+    if (mine) return this.drawPotato(g, mine);
+    if (live.length === 1) return this.drawPotato(g, live[0]);
+    if (live.length > 1) drawText(g, `${live.length} POTATOES IN PLAY`, VIEW.width / 2, 4, { color: '#f0a03a', align: 'center' });
+  }
+
   /** Who has the potato and how long it's got: big and red if it's you. */
   drawPotato(g, potato) {
     const h = potato.holder;
@@ -216,7 +226,10 @@ export class Hud {
     g.fillStyle = kart.focus >= 0.999 ? PAL.white : '#a77bff';
     g.fillRect(x, y, Math.round(w * kart.focus), 4);
     const ready = kart.focus > 0.2;
-    const label = ready && Math.floor(this.clock * 3) % 2 === 0 ? 'HOLD SHIFT' : 'FOCUS';
+    const bomb = this.race.rules?.timebomb;
+    const active = this.race.bullet?.active;
+    const charged = this.race.bullet?.charged?.length ?? 0;
+    const label = active ? `${charged} CHARGED - LET GO TO BLOW` : ready && Math.floor(this.clock * 3) % 2 === 0 ? 'HOLD SHIFT' : bomb ? 'TIME BOMB' : 'FOCUS';
     drawText(g, label, VIEW.width / 2, y - 8, { color: ready ? '#d2b8ff' : PAL.silver, align: 'center' });
   }
 
@@ -269,9 +282,10 @@ export class Hud {
       g.fillStyle = KART_COLOURS[k.color]?.body ?? PAL.white;
       g.fillRect(x + mx - 1, y + my - 1, 2, 2);
     }
-    // The potato: an orange dot just above whoever has it.
-    const h = this.race.potato?.holder;
-    if (h) {
+    // Potatoes: an orange dot just above whoever has one.
+    for (const pot of this.race.potatoes ?? []) {
+      const h = pot.holder;
+      if (!h) continue;
       const [mx, my] = m.toMap(h.x, h.y);
       g.fillStyle = Math.floor(this.clock * 6) % 2 ? '#f0a03a' : PAL.white;
       g.fillRect(x + mx - 1, y + my - 4, 2, 2);

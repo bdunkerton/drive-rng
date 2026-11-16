@@ -105,6 +105,11 @@ export class RaceView {
     on('billiards:hit', ({ kart, chain }) => {
       this.particles.burst(kart.x, kart.y, 12 + chain * 4, [PAL.white, PAL.gold, PAL.boostHot], 60 + chain * 10, 0.4);
     });
+    on('bomb:charge', ({ kart }) => this.particles.burst(kart.x, kart.y, 8, ['#ffe066', '#e0463a', PAL.white], 40, 0.3));
+    on('bomb:detonate', ({ kart, karts }) => {
+      if (karts.length && kart === this.target) this.shake = Math.max(this.shake, Math.min(6, 2 + karts.length));
+    });
+    on('royale:out', ({ kart }) => this.particles.burst(kart.x, kart.y, 30, ['#f0a03a', '#a8662a', PAL.boostHot, '#6a6e78', PAL.white], 90, 0.7));
     on('ram', ({ by, kart }) => {
       this.particles.burst((by.x + kart.x) / 2, (by.y + kart.y) / 2, 18, [PAL.white, PAL.gold, PAL.boostHot], 70, 0.4);
       if (by === this.target) this.shake = Math.max(this.shake, 3);
@@ -287,8 +292,11 @@ export class RaceView {
 
   /** When the potato is off screen, an orange arrow at the edge points at whoever has it. */
   drawPotatoPointer(g, camX, camY) {
-    const h = this.race.potato?.holder;
-    if (!h || h === this.target) return;
+    for (const pot of this.race.potatoes ?? []) if (pot.holder) this.drawPointer(g, camX, camY, pot.holder, pot.fuse);
+  }
+
+  drawPointer(g, camX, camY, h, fuse) {
+    if (h === this.target) return;
     const x = h.x - camX;
     const y = h.y - camY;
     const m = 8;
@@ -300,7 +308,7 @@ export class RaceView {
     const t = Math.min((VIEW.width / 2 - m) / Math.abs(Math.cos(a) || 1e-6), (VIEW.height / 2 - m) / Math.abs(Math.sin(a) || 1e-6));
     const px = Math.round(cx + Math.cos(a) * t);
     const py = Math.round(cy + Math.sin(a) * t);
-    const blink = this.race.potato.fuse < 2.5 && Math.floor(this.race.time * 8) % 2;
+    const blink = fuse < 2.5 && Math.floor(this.race.time * 8) % 2;
     g.fillStyle = blink ? PAL.white : '#f0a03a';
     for (let i = 0; i < 5; i++) {
       // A little triangle: rows get narrower toward the tip.
@@ -353,6 +361,24 @@ export class RaceView {
       if (e.bands) for (const b of e.bands) line(...to(b), ['#f07ab8', '#9b52d2'], 0);
     }
     if (k.hasPotato) this.drawPotatoOn(g, k, cx, cy - 11 * scale);
+    if (k.hunter) {
+      // A red chevron over each hunter; it turns bright when one is right on your tail.
+      const p = this.race.player;
+      const close = p && p.progress - k.progress > 0 && p.progress - k.progress < 60;
+      g.fillStyle = close && Math.floor(this.race.time * 8) % 2 ? '#ffe066' : '#e0463a';
+      const top = cy - 13 * scale;
+      g.fillRect(cx - 3, top, 7, 1);
+      g.fillRect(cx - 2, top + 1, 5, 1);
+      g.fillRect(cx - 1, top + 2, 3, 1);
+      g.fillRect(cx, top + 3, 1, 1);
+    }
+    if (k.charged) {
+      // Charged by a Time Bomb: fizzing.
+      g.fillStyle = Math.floor(this.race.time * 20) % 2 ? '#ffe066' : '#e0463a';
+      g.fillRect(cx - 1 + Math.round(Math.random() * 2), cy - 9 * scale + Math.round(Math.random() * 2), 2, 2);
+      g.fillStyle = '#ffffff';
+      g.fillRect(cx + Math.round((Math.random() - 0.5) * 8), cy + Math.round((Math.random() - 0.5) * 8), 1, 1);
+    }
     if (k.effects.has('spinout')) {
       for (let i = 0; i < 3; i++) {
         const a = this.race.time * 9 + (i * Math.PI * 2) / 3;
@@ -364,8 +390,7 @@ export class RaceView {
 
   /** The potato bobbing above its holder, fuse spark fizzing faster as time runs out. */
   drawPotatoOn(g, k, x, y) {
-    const potato = this.race.potato;
-    const left = potato?.fuse ?? 8;
+    const left = this.race.potatoOf?.(k)?.fuse ?? 8;
     const bob = Math.round(Math.sin(this.race.time * 10) * 1);
     const hot = left < 2.5 && Math.floor(this.race.time * (left < 1.2 ? 14 : 7)) % 2 === 0;
     const body = hot ? '#e0463a' : '#c98a3c';

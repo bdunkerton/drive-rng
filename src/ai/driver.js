@@ -3,7 +3,7 @@
 // hand: fusing sometimes, using items when they'd do something. It also backs out if
 // it gets stuck.
 
-import { AI, KART, POTATO } from '../config.js';
+import { AI, KART, POTATO, SLINGSHOT, HUNT } from '../config.js';
 import { clamp, angleDiff, lerp, loopDelta } from '../core/math.js';
 import { isReady, canFuse, aiWantsItem } from '../sim/hand.js';
 import { powerups } from '../sim/powerups/index.js';
@@ -24,6 +24,8 @@ export class AIDriver {
     this.laneTimer = rng.range(1, 3);
     this.stuckFor = 0;
     this.reverseFor = 0;
+    this.pullOutFor = 0;
+    this.pullOutLane = 0;
     this.itemDelay = null;
     this.holdingFor = 0;
     this.fuseRoll = undefined;
@@ -52,9 +54,20 @@ export class AIDriver {
     const look = AI.lookaheadBase + Math.max(0, speed) * AI.lookaheadPerSpeed;
     const avoid = this.planAroundSolids(kart, race, 60 + Math.max(0, speed) * 1.3);
     // Hot potato: chase someone when holding it, get out of the way when the holder's close.
-    const tag = race.phase === 'racing' && !kart.finished ? this.playTag(kart, race) : null;
+    const tag = race.phase === 'racing' && !kart.finished ? this.playTag(kart, race) ?? (kart.hunter ? this.playHunt(kart, race) : null) : null;
     if (tag) this.laneTarget = clamp(tag.lane, -track.halfWidth + 6, track.halfWidth - 6);
-    const laneRate = avoid !== null ? 8 : tag ? 2 + 3 * this.skill : 1.5;
+    // Slingshot drafting: charged up behind someone, pull out to the side with more room.
+    if (!tag && race.rules?.slingshot && kart.draftingBehind && kart.draft >= SLINGSHOT.aiPullOutAt * (0.9 + 0.2 * this.rng.next())) {
+      const l = kart.draftingBehind;
+      const side = l.lateral > 0 ? -1 : 1;
+      this.pullOutFor = 1.2;
+      this.pullOutLane = clamp(l.lateral + side * 20, -track.halfWidth + 6, track.halfWidth - 6);
+    }
+    if (this.pullOutFor > 0) {
+      this.pullOutFor -= dt;
+      if (!tag) this.laneTarget = this.pullOutLane;
+    }
+    const laneRate = avoid !== null ? 8 : tag ? 2 + 3 * this.skill : this.pullOutFor > 0 ? 5 : 1.5;
     this.lane = lerp(this.lane, this.laneTarget, clamp(dt * laneRate, 0, 1));
 
     // --- Steering -------------------------------------------------------------
@@ -66,6 +79,8 @@ export class AIDriver {
     if (tag?.mode === 'chase' && tag.gap < 70) {
       target = { x: tag.kart.x + tag.kart.vx * 0.15, y: tag.kart.y + tag.kart.vy * 0.15 };
     }
+    // Hunting: close in, then drive at a rear corner.
+    if (tag?.mode === 'hunt' && tag.aim) target = tag.aim;
     const desired = Math.atan2(target.y - kart.y, target.x - kart.x);
     const turn = angleDiff(kart.heading, desired);
     let steer = clamp(turn * 2.8, -1, 1);
@@ -117,20 +132,43 @@ export class AIDriver {
   }
 
   /**
+   * A hunter's plan: get behind the player and drive into a rear corner (a PIT); if it's
+   * just ahead of the player instead, sit in the player's lane. Backs off for a while
+   * after a successful hit.
+   */
+  playHunt(kart, race) {
+    const p = race.player;
+    if (!p || p.finished || p.effects.has('spinout') || race.time < (kart.huntCooldownUntil ?? 0)) return null;
+    const gap = p.progress - kart.progress;
+    if (gap < 0 && -gap < HUNT.blockRange) return { mode: 'block', kart: p, gap: -gap, lane: p.lateral };
+    if (gap <= 0 || gap > HUNT.range) return null;
+    // Pick a corner and stick with it for the attempt.
+    if (this.huntSide === undefined || gap > HUNT.range * 0.8) this.huntSide = kart.lateral >= p.lateral ? 1 : -1;
+    const side = this.huntSide;
+    const lane = p.lateral + side * 6;
+    if (gap > HUNT.aimFrom) return { mode: 'hunt', kart: p, gap, lane };
+    const fx = Math.cos(p.heading);
+    const fy = Math.sin(p.heading);
+    const aim = { x: p.x - fx * 6 - fy * side * 5 + p.vx * 0.12, y: p.y - fy * 6 + fx * side * 5 + p.vy * 0.12 };
+    return { mode: 'hunt', kart: p, gap, lane, aim };
+  }
+
+  /**
    * The hot potato, from a rival's point of view. Returns where in the road it wants to be
    * (a lateral offset) and why, or null if the potato's no business of its own right now.
    * Better rivals commit harder: they line up more exactly and run further out of the way.
    */
   playTag(kart, race) {
-    const potato = race.potato;
-    if (!potato?.holder) return null;
+    const potatoes = race.potatoes?.filter((p) => p.holder) ?? [];
+    if (!potatoes.length) return null;
     const edge = race.track.halfWidth - 8;
-    if (potato.holder === kart) {
+    const mine = potatoes.find((p) => p.holder === kart);
+    if (mine) {
       // Someone up the road it's allowed to tag?
       let best = null;
       let bestGap = Infinity;
       for (const k of race.karts) {
-        if (k === kart || !potato.canTake(k)) continue;
+        if (k === kart || !mine.canTake(k)) continue;
         const gap = k.progress - kart.progress;
         if (gap > 0 && gap < POTATO.aiChaseRange && gap < bestGap) {
           best = k;
@@ -140,20 +178,28 @@ export class AIDriver {
       if (best) return { mode: 'chase', kart: best, gap: bestGap, lane: lerp(this.laneBias, best.lateral, this.skill) };
       // Nobody ahead worth chasing: sit in the line of the nearest kart behind.
       for (const k of race.kartsBehind(kart)) {
-        if (!potato.canTake(k)) continue;
+        if (!mine.canTake(k)) continue;
         const gap = kart.progress - k.progress;
         if (gap < 90) return { mode: 'brake-check', kart: k, gap, lane: lerp(this.laneBias, k.lateral, this.skill) };
         break;
       }
       return null;
     }
-    // Someone else has it. If they're close, get to the other side of the road from them.
-    if (!potato.canTake(kart)) return null;
-    const h = potato.holder;
-    const behind = kart.progress - h.progress;
-    if (behind < -40 || behind > POTATO.aiFleeRange) return null;
+    // Someone else has one. If the nearest holder is close, get to the other side of the road.
+    let h = null;
+    let nearest = Infinity;
+    for (const p of potatoes) {
+      if (!p.canTake(kart)) continue;
+      const behind = kart.progress - p.holder.progress;
+      if (behind < -40 || behind > POTATO.aiFleeRange) continue;
+      if (Math.abs(behind) < nearest) {
+        nearest = Math.abs(behind);
+        h = p.holder;
+      }
+    }
+    if (!h) return null;
     const away = h.lateral > kart.lateral ? -1 : 1;
-    return { mode: 'flee', kart: h, gap: Math.abs(behind), lane: away * edge * (0.5 + 0.5 * this.skill) };
+    return { mode: 'flee', kart: h, gap: nearest, lane: away * edge * (0.5 + 0.5 * this.skill) };
   }
 
   /**

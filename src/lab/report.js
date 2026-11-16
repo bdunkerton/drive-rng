@@ -29,6 +29,13 @@ function describeRuns(runs) {
   add('near misses', 'nearMisses');
   add('focus s', 'focusSeconds');
   add('wall hits', 'wallHits');
+  add('time bomb uses', 'bombUses');
+  add('karts charged', 'charged');
+  add('bomb spins', 'bombSpins');
+  add('bomb chains', 'bombChains');
+  add('spun by hunters', 'huntedSpins');
+  add('knocked out at s', 'outAt');
+  add('most potatoes at once', 'potatoesMax');
   return `${bits.join(' · ')} (averages per run)`;
 }
 

@@ -10,6 +10,9 @@ export function describeRunsShort(runs) {
   if (last.vaults) latest.push(`${last.vaults} vault${last.vaults === 1 ? '' : 's'}`);
   if (last.shots) latest.push(`${last.shots} shots, ${last.chainHits} chain hits`);
   if (last.nearMisses || last.focusSeconds) latest.push(`${last.nearMisses} near misses, ${last.focusSeconds}s focus`);
+  if (last.bombUses) latest.push(`${last.bombUses} time bombs, ${last.charged} charged, ${last.bombSpins + last.bombChains} blown up`);
+  if (last.huntedSpins) latest.push(`spun by hunters ${last.huntedSpins}x`);
+  if (last.outAt) latest.push(`knocked out at ${last.outAt}s`);
   if (last.spunOut) latest.push(`spun out ${last.spunOut}x`);
   return `${bits[0]} ${latest.join(', ')}.`;
 }
