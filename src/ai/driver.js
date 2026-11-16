@@ -3,7 +3,7 @@
 // hand: fusing sometimes, using items when they'd do something. It also backs out if
 // it gets stuck.
 
-import { AI, KART, POTATO, SLINGSHOT, HUNT } from '../config.js';
+import { AI, KART, POTATO, SLINGSHOT, HUNT, HEIST } from '../config.js';
 import { clamp, angleDiff, lerp, loopDelta } from '../core/math.js';
 import { isReady, canFuse, aiWantsItem } from '../sim/hand.js';
 import { powerups } from '../sim/powerups/index.js';
@@ -17,6 +17,7 @@ export class AIDriver {
   constructor(rng, opts = {}) {
     this.rng = rng;
     this.skill = opts.skill ?? rng.range(AI.skillMin, AI.skillMax);
+    this.traffic = !!opts.traffic; // Heist traffic: keeps its lane, ignores the racing line
     // Each rival prefers its own lane a bit, and wanders around it slowly.
     this.laneBias = rng.range(-6, 6);
     this.lane = this.laneBias;
@@ -25,6 +26,9 @@ export class AIDriver {
     this.stuckFor = 0;
     this.reverseFor = 0;
     this.pullOutFor = 0;
+    // Slingshot v2: how much charge this rival waits for before pulling out (over 1 = it
+    // always waits for the full, automatic slingshot).
+    this.patience = rng.range(0.6, 1.2);
     this.pullOutLane = 0;
     this.itemDelay = null;
     this.holdingFor = 0;
@@ -54,10 +58,11 @@ export class AIDriver {
     const look = AI.lookaheadBase + Math.max(0, speed) * AI.lookaheadPerSpeed;
     const avoid = this.planAroundSolids(kart, race, 60 + Math.max(0, speed) * 1.3);
     // Hot potato: chase someone when holding it, get out of the way when the holder's close.
-    const tag = race.phase === 'racing' && !kart.finished ? this.playTag(kart, race) ?? (kart.hunter ? this.playHunt(kart, race) : null) : null;
+    const tag = race.phase === 'racing' && !kart.finished && !this.traffic ? this.playTag(kart, race) ?? (kart.hunter ? this.playHunt(kart, race) : null) : null;
     if (tag) this.laneTarget = clamp(tag.lane, -track.halfWidth + 6, track.halfWidth - 6);
     // Slingshot drafting: charged up behind someone, pull out to the side with more room.
-    if (!tag && race.rules?.slingshot && kart.draftingBehind && kart.draft >= SLINGSHOT.aiPullOutAt * (0.9 + 0.2 * this.rng.next())) {
+    const pullAt = race.rules?.slingshot === 2 ? this.patience : SLINGSHOT.aiPullOutAt;
+    if (!tag && !this.traffic && race.rules?.slingshot && kart.draftingBehind && kart.draft >= pullAt) {
       const l = kart.draftingBehind;
       const side = l.lateral > 0 ? -1 : 1;
       this.pullOutFor = 1.2;
@@ -73,7 +78,8 @@ export class AIDriver {
     // --- Steering -------------------------------------------------------------
     // Swerving round a stack, it aims at the gap itself rather than far up the road.
     const aheadS = kart.s + (avoid !== null ? clamp(avoid, 30, look) : look);
-    const offset = clamp(track.racingLineAt(aheadS) * this.skill + this.lane, -track.halfWidth + 5, track.halfWidth - 5);
+    const line = this.traffic ? 0 : track.racingLineAt(aheadS) * this.skill;
+    const offset = clamp(line + this.lane, -track.halfWidth + 5, track.halfWidth - 5);
     let target = track.pointAt(aheadS, offset);
     // Close enough to tag: drive straight at them (leading them a touch).
     if (tag?.mode === 'chase' && tag.gap < 70) {
@@ -91,6 +97,8 @@ export class AIDriver {
     // Leading with the potato and nobody ahead: lift and let the kart behind run into you.
     if (tag?.mode === 'brake-check' && tag.gap < 45) targetSpeed *= 0.75;
     targetSpeed = Math.max(targetSpeed, 34);
+    // A cop that's ahead of you waits: crawls when you're close behind, stops when far.
+    if (tag?.mode === 'wait') targetSpeed = tag.gap > 120 ? 0 : 50;
 
     let throttle = 1;
     let brake = 0;
@@ -140,13 +148,17 @@ export class AIDriver {
     const p = race.player;
     if (!p || p.finished || p.effects.has('spinout') || race.time < (kart.huntCooldownUntil ?? 0)) return null;
     const gap = p.progress - kart.progress;
+    const cop = kart.cop;
     if (gap < 0 && -gap < HUNT.blockRange) return { mode: 'block', kart: p, gap: -gap, lane: p.lateral };
-    if (gap <= 0 || gap > HUNT.range) return null;
+    // A cop that's got ahead of you waits for you to come by (then chases again).
+    if (cop && gap < 0) return { mode: 'wait', kart: p, gap: -gap, lane: p.lateral };
+    // Cops chase you wherever you are; hunters only once they're close.
+    if (gap <= 0 || (!cop && gap > HUNT.range)) return null;
     // Pick a corner and stick with it for the attempt.
     if (this.huntSide === undefined || gap > HUNT.range * 0.8) this.huntSide = kart.lateral >= p.lateral ? 1 : -1;
     const side = this.huntSide;
     const lane = p.lateral + side * 6;
-    if (gap > HUNT.aimFrom) return { mode: 'hunt', kart: p, gap, lane };
+    if (gap > (cop ? HEIST.copAimFrom : HUNT.aimFrom)) return { mode: 'hunt', kart: p, gap, lane };
     const fx = Math.cos(p.heading);
     const fy = Math.sin(p.heading);
     const aim = { x: p.x - fx * 6 - fy * side * 5 + p.vx * 0.12, y: p.y - fy * 6 + fx * side * 5 + p.vy * 0.12 };

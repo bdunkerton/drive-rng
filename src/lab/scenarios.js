@@ -3,9 +3,9 @@
 // list and bump `batch`, so feedback can say which round of ideas it was about.
 // `rules` switches mechanics on for the race (see DEFAULT_RULES in src/sim/race.js).
 
-export const LAB_VERSION = 'lab-2';
+export const LAB_VERSION = 'lab-3';
 /** The lab menu shows this batch (?lab=all shows every scenario, archived ones too). */
-export const CURRENT_BATCH = 2;
+export const CURRENT_BATCH = 3;
 
 /**
  * @typedef {{ id: string, batch: number, name: string, pitch: string, how: string[],
@@ -96,6 +96,38 @@ export const SCENARIOS = [
     how: ['DONT LET ONE SIT ON YOUR BUMPER', 'A HUNTER JUST AHEAD WILL BLOCK'],
     rules: { draft: true, ram: true, slingshot: true, hunters: 3 },
     question: 'DOES BEING HUNTED MAKE DRIVING TENSE IN A GOOD WAY?',
+  },
+  // --- Batch 3 (after playtest #9): Pack Race 2 won; Royale needs a tiny track and a fuse
+  // that keeps burning; Time Bomb needs a reason (the heist); Hunted parked. ---
+  {
+    id: 'pack3',
+    batch: 3,
+    name: 'PACK RACE 3',
+    pitch: 'SHORTER WAKES: YOU HAVE TO BE RIGHT ON SOMEONE. A FULL CHARGE FIRES BY ITSELF AND MAKES YOU HEAVY, SO YOU SLAM THROUGH THE PACK. PULL OUT EARLY FOR A SMALLER BURST.',
+    how: ['TUCK IN TIGHT, LET IT FIRE', 'OR STEER OUT EARLY ON PURPOSE'],
+    rules: { draft: true, ram: true, slingshot: 2 },
+    question: 'DOES SLAMMING THROUGH ON A FULL CHARGE FEEL GOOD EVERY TIME?',
+  },
+  {
+    id: 'royale2',
+    batch: 3,
+    name: 'BULLRING ROYALE',
+    pitch: 'POTATO ROYALE ON A TINY OVAL (8 SECOND LAPS), SO THE LEADERS ARE ALWAYS IN THE PACK. A FUSE KEEPS BURNING WHEN IT IS PASSED: WHOEVER HOLDS IT AT ZERO IS OUT.',
+    how: ['IT STARTS WITH YOU', 'FUSES GET SHORTER AS KARTS DROP'],
+    rules: { draft: true, ram: true, slingshot: 2, royale: 2 },
+    track: 'bullring',
+    laps: 99,
+    question: 'IS THERE NOWHERE TO HIDE NOW? DOES THE END STAY TENSE?',
+  },
+  {
+    id: 'heist',
+    batch: 3,
+    name: 'HEIST',
+    pitch: 'GETAWAY: JUST YOU, A ROAD FULL OF SLOW TRAFFIC, AND THREE FAST COPS. A COP THAT SPINS YOU IS A BUST; 3 BUSTS AND YOU ARE CAUGHT. SCRAPE PAST TRAFFIC TO EARN THE TIME BOMB, THEN BLOW THE COPS AWAY.',
+    how: ['3 LAPS TO GET AWAY', 'HOLD SHIFT: TAG COPS AND CARS, LET GO'],
+    rules: { draft: true, ram: true, slingshot: 2, timebomb: true, heist: true },
+    rivals: 0,
+    question: 'IS WEAVING, EARNING THE BOMB AND BLOWING THE COPS A LOOP?',
   },
 ];
 

@@ -59,6 +59,11 @@ export const SLINGSHOT = {
   accel: 2.5,           // ...and this much harder acceleration
   kick: 45,             // instant extra speed at full charge
   aiPullOutAt: 0.8,     // rivals pull out to pass once they've this much charge
+  // Slingshot v2 (rule slingshot: 2, after playtest #9):
+  range: 60,            // a shorter wake: you have to be right on the kart ahead
+  partialScale: 0.7,    // pulling out before you're full gives a smaller burst
+  autoMass: 3,          // a full charge fires by itself and you're heavy: you plough through
+  autoSeconds: 1.4,
 };
 
 // Time Bomb (a lab rule, bullet time v2): hold FOCUS and the world crawls while you keep
@@ -73,6 +78,26 @@ export const TIMEBOMB = {
   blastRadius: 30,      // karts this close to a detonation get thrown...
   blastPush: 110,
   chainRadius: 20,      // ...and this close also spin (chain reactions)
+};
+
+// Heist (a lab rule): you alone, a road full of slow traffic, and cops behind you. A cop
+// that spins you is a bust; three busts and you're caught. Finish the laps to get away.
+// Weaving close past traffic earns the Time Bomb (no free refills here).
+export const HEIST = {
+  traffic: 18,
+  trafficSpeedMin: 70,
+  trafficSpeedMax: 115,
+  cops: 3,
+  copSpeed: 1.2,        // cops' top speed, as a multiple of yours
+  copMass: 1.5,         // they shove traffic out of the way
+  copSkill: 0.97,
+  copDelay: 1.5,        // seconds after GO before the cops set off
+  copStartGap: 180,     // how far behind you they start
+  copAimFrom: 75,       // closer than this a cop drives at your rear corner
+  copCooldown: 2,       // after busting you, a cop backs off this long
+  busts: 3,
+  nearMiss: 0.12,       // Time Bomb earned per near miss
+  clearStart: 260,      // no traffic this close to the start (ahead or behind)
 };
 
 // Hunters (a lab rule): a few rivals come after the player and aim for a rear corner.
@@ -154,6 +179,11 @@ export const ROYALE = {
   fuseSeconds: 7,
   maxPotatoes: 3,
   kartsPerPotato: 3,    // at most one potato per this many karts still in
+  // Royale 2 (rule royale: 2, after playtest #9): a potato's fuse keeps burning through
+  // passes, so somebody is just out of luck. Each new potato gets a fuse in this range.
+  keepFuseMin: 12,
+  keepFuseMax: 18,
+  shortenTo: 0.45,      // fuses shrink as karts drop, down to this fraction (a faster endgame)
 };
 
 export const SURFACE = {

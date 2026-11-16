@@ -45,6 +45,7 @@ export function hitKart(target, race, { by = null, kind = 'hit' } = {}) {
   }
   target.addEffect(spinoutEffect(), race);
   target.spunAt = race.time;
+  if (target.cop) target.huntCooldownUntil = race.time + 2; // a spun cop needs a moment
   race.events.emit('hit', { kart: target, by, kind });
   race.events.emit('sfx', { name: 'spin', kart: target });
   if (by && by !== target && kind === 'bomb') {

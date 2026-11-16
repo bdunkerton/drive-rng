@@ -21,6 +21,9 @@ import { RaceScene } from './scenes/raceScene.js';
 import { LabScene } from './scenes/labScene.js';
 import { scenarioById, LAB_DEFAULTS } from './lab/scenarios.js';
 import oval from './tracks/oval.js';
+import bullring from './tracks/bullring.js';
+
+const LAB_TRACKS = { oval, bullring };
 
 function readOptions() {
   const q = new URLSearchParams(location.search);
@@ -88,7 +91,7 @@ export class Game {
     const o = this.options;
     this.setScene(new RaceScene(this, {
       scenario,
-      track: oval,
+      track: LAB_TRACKS[scenario.track] ?? oval,
       rules: { potato: false, ...scenario.rules },
       items: false,
       laps: o.laps ?? scenario.laps ?? LAB_DEFAULTS.laps,

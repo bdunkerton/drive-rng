@@ -361,7 +361,15 @@ export class RaceView {
       if (e.bands) for (const b of e.bands) line(...to(b), ['#f07ab8', '#9b52d2'], 0);
     }
     if (k.hasPotato) this.drawPotatoOn(g, k, cx, cy - 11 * scale);
-    if (k.hunter) {
+    if (k.cop) {
+      // Lights on the roof.
+      const blue = Math.floor(this.race.time * 8) % 2;
+      g.fillStyle = blue ? '#3f9bff' : '#ff4a3a';
+      g.fillRect(cx - 2, cy - 1, 2, 2);
+      g.fillStyle = blue ? '#ff4a3a' : '#3f9bff';
+      g.fillRect(cx, cy - 1, 2, 2);
+    }
+    if (k.hunter && !k.cop) {
       // A red chevron over each hunter; it turns bright when one is right on your tail.
       const p = this.race.player;
       const close = p && p.progress - k.progress > 0 && p.progress - k.progress < 60;

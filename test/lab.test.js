@@ -8,6 +8,8 @@ import { SCENARIOS, scenarioById } from '../src/lab/scenarios.js';
 import { buildReport, issueUrl } from '../src/lab/report.js';
 import { spinoutEffect } from '../src/sim/hits.js';
 import { FOCUS } from '../src/config.js';
+import { AIDriver } from '../src/ai/driver.js';
+import { Rng } from '../src/core/rng.js';
 
 const DT = 1 / 60;
 
@@ -40,6 +42,7 @@ test('the test oval is a sound track: wide, smooth, about 16 seconds a lap', () 
 
 test('every scenario races to the finish with 11 karts', () => {
   for (const s of SCENARIOS) {
+    if (s.rules.heist) continue; // no pack: covered by the heist tests
     const race = new Race({ track: oval, seed: 7, rivals: 10, countdown: 0, humanInput: null, laps: 1, items: false, rules: { potato: false, ...s.rules } });
     for (let i = 0; i < 60 * 240 && race.phase !== 'done'; i++) race.step(DT);
     assert.equal(race.phase, 'done', s.id);
@@ -221,8 +224,75 @@ test('potato royale: swaps are instant, but not straight back until you separate
   assert.equal(pot.holder, a, 'after separating it can go back');
 });
 
-test('the lab menu shows the current batch; batch 1 is archived', async () => {
+test('the lab menu shows the current batch; earlier ones are archived', async () => {
   const { CURRENT_BATCH } = await import('../src/lab/scenarios.js');
-  assert.equal(CURRENT_BATCH, 2);
-  assert.deepEqual(SCENARIOS.filter((s) => s.batch === 2).map((s) => s.id), ['pack2', 'royale', 'timebomb', 'hunted']);
+  assert.equal(CURRENT_BATCH, 3);
+  assert.deepEqual(SCENARIOS.filter((s) => s.batch === 3).map((s) => s.id), ['pack3', 'royale2', 'heist']);
+});
+
+// --- Batch 3 -----------------------------------------------------------------
+
+test('slingshot v2: a full charge fires by itself and makes you heavy', () => {
+  const { race, me, rival } = pair({ slingshot: 2 }, { gap: 20, ahead: 150, behind: 150 });
+  rival.controller = { update(k) { k.controls.throttle = 1; k.controls.steer = 0; k.controls.brake = 0; } };
+  let auto = false;
+  race.events.on('draft:slingshot', (e) => (auto = auto || (e.kart === me && e.auto)));
+  for (let i = 0; i < 60 * 3 && !auto; i++) race.step(DT);
+  assert.ok(auto, 'fired without pulling out');
+  assert.ok(me.stats().mass >= 2.5);
+  assert.equal(me.draft, 0);
+});
+
+test('slingshot v2: the wake is short', () => {
+  const { race, me, rival } = pair({ slingshot: 2 }, { gap: 90, ahead: 150, behind: 150 });
+  rival.controller = { update(k) { k.controls.throttle = 1; k.controls.steer = 0; k.controls.brake = 0; } };
+  race.updateDrafts(DT);
+  assert.equal(me.draftingBehind, null);
+  assert.ok(rival);
+});
+
+test('bullring royale: the fuse keeps burning through passes and shortens as karts drop', async () => {
+  const ring = (await import('../src/tracks/bullring.js')).default;
+  const race = new Race({ track: ring, seed: 2, rivals: 10, countdown: 0, humanInput: null, items: false, rules: { potato: false, royale: 2 } });
+  const pot = race.potatoes[0];
+  const [a, b] = race.karts;
+  pot.give(a, null);
+  const fresh = pot.fuse;
+  assert.ok(fresh >= 12 && fresh <= 18);
+  pot.fuse = 5;
+  race.steps++;
+  pot.touch(a, b);
+  assert.equal(pot.holder, b);
+  assert.equal(pot.fuse, 5, 'no reset on a pass');
+  for (let i = 0; i < 60 * 240 && race.phase !== 'done'; i++) race.step(DT);
+  assert.equal(race.phase, 'done');
+  assert.equal(race.karts.length, 1);
+});
+
+test('heist: traffic and cops join, only you race, three busts and you are caught', () => {
+  const input = { throttle: 0, brake: 0, steer: 0, useItem: false };
+  const race = new Race({ track: oval, seed: 3, rivals: 0, countdown: 0, humanInput: input, items: false, rules: { potato: false, heist: true, timebomb: true } });
+  const cops = race.karts.filter((k) => k.cop);
+  const traffic = race.karts.filter((k) => k.traffic);
+  assert.equal(cops.length, 3);
+  assert.equal(traffic.length, 18);
+  assert.deepEqual(race.order.map((k) => k.name), ['YOU']);
+  assert.equal(race.player.focus, 0, 'the bomb has to be earned');
+  // A slow, careful driver: the cops should get it.
+  race.player.controller = new AIDriver(new Rng(1), { skill: 0.6 });
+  let busts = 0;
+  race.events.on('heist:bust', () => busts++);
+  for (let i = 0; i < 60 * 150 && race.phase !== 'done'; i++) race.step(DT);
+  assert.equal(race.phase, 'done');
+  assert.ok(busts >= 1, 'the cops bust you at least once');
+  if (race.player.caught) {
+    assert.equal(race.player.busts, 3);
+    assert.equal(race.results()[0].caught, true);
+  } else assert.ok(race.player.finished);
+});
+
+test('heist: traffic never counts as finishing and cops never lap into the results', () => {
+  const race = new Race({ track: oval, seed: 4, rivals: 0, countdown: 0, humanInput: null, laps: 1, items: false, rules: { potato: false, heist: true } });
+  for (let i = 0; i < 60 * 60; i++) race.step(DT);
+  assert.ok(race.karts.filter((k) => k.traffic || k.cop).every((k) => !k.finished));
 });
