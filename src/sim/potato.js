@@ -14,6 +14,8 @@ export class Potato {
   constructor(race, opts = {}) {
     this.race = race;
     this.royale = !!opts.royale;
+    this.keepFuse = !!opts.keepFuse; // royale 2: passing doesn't reset the fuse
+    this.fullFuse = 0;
     this.lockedFrom = null;   // royale: the kart that just gave it; no passing back until apart
     this.retired = false;
     /** @type {import('./kart.js').Kart|null} */
@@ -29,7 +31,7 @@ export class Potato {
 
   /** Seconds of fuse left as a fraction of a full fuse (1 = fresh). */
   get fuseFraction() {
-    return this.holder ? Math.max(0, this.fuse / this.fuseSeconds) : 0;
+    return this.holder ? Math.max(0, this.fuse / (this.fullFuse || this.fuseSeconds)) : 0;
   }
 
   get fuseSeconds() {
@@ -98,7 +100,13 @@ export class Potato {
       return;
     }
     to.hasPotato = true;
-    this.fuse = this.fuseSeconds;
+    if (!this.keepFuse) this.fuse = this.fullFuse = this.fuseSeconds;
+    else if (!from) {
+      // Fewer karts left, shorter fuses: the endgame speeds up.
+      const race = this.race;
+      const scale = Math.max(ROYALE.shortenTo, race.karts.length / (race.karts.length + race.out.length));
+      this.fuse = this.fullFuse = race.rng.range(ROYALE.keepFuseMin, ROYALE.keepFuseMax) * scale;
+    }
     this.giver = from;
     this.heldFor = 0;
     this.lockedFrom = from;

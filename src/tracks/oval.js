@@ -2,59 +2,58 @@
 // road wide enough for a pack of eleven to run four or five abreast, and nothing else.
 // Mechanics get tried out here before they go anywhere fancier.
 
-const STRAIGHT = 760;   // length of each straight
-const RADIUS = 190;     // radius of the bends (centreline)
-const MARGIN = 150;     // world space around the outside of the track
-const CX = MARGIN + RADIUS;
-const CY = MARGIN + RADIUS;
-
-// Control points every ~60 px round a stadium shape, clockwise, starting just past the
-// middle of the top straight (going right), so the whole grid sits on the straight.
-// Dense points keep the spline from pinching the bends.
-function stadium() {
+/**
+ * A stadium oval: two straights joined by half-circle bends. Control points every ~60 px,
+ * clockwise, starting just past the middle of the top straight (going right), so the
+ * whole grid sits on the straight. Dense points keep the spline from pinching the bends.
+ */
+export function makeOval({ id, name, straight, radius, halfWidth, margin = 150, scenery = {} }) {
+  const CX = margin + radius;
+  const CY = margin + radius;
   const step = 60;
-  const arc = Math.PI * RADIUS;
-  const total = 2 * STRAIGHT + 2 * arc;
+  const arc = Math.PI * radius;
+  const total = 2 * straight + 2 * arc;
   const n = Math.round(total / step);
-  const pts = [];
+  const points = [];
   for (let i = 0; i < n; i++) {
-    let d = ((i * total) / n + STRAIGHT * 0.6) % total;
+    let d = ((i * total) / n + straight * 0.6) % total;
     let x;
     let y;
-    if (d < STRAIGHT) {
+    if (d < straight) {
       x = CX + d;
-      y = CY - RADIUS;
-    } else if ((d -= STRAIGHT) < arc) {
-      const a = -Math.PI / 2 + d / RADIUS;
-      x = CX + STRAIGHT + Math.cos(a) * RADIUS;
-      y = CY + Math.sin(a) * RADIUS;
-    } else if ((d -= arc) < STRAIGHT) {
-      x = CX + STRAIGHT - d;
-      y = CY + RADIUS;
+      y = CY - radius;
+    } else if ((d -= straight) < arc) {
+      const a = -Math.PI / 2 + d / radius;
+      x = CX + straight + Math.cos(a) * radius;
+      y = CY + Math.sin(a) * radius;
+    } else if ((d -= arc) < straight) {
+      x = CX + straight - d;
+      y = CY + radius;
     } else {
-      d -= STRAIGHT;
-      const a = Math.PI / 2 + d / RADIUS;
-      x = CX + Math.cos(a) * RADIUS;
-      y = CY + Math.sin(a) * RADIUS;
+      d -= straight;
+      const a = Math.PI / 2 + d / radius;
+      x = CX + Math.cos(a) * radius;
+      y = CY + Math.sin(a) * radius;
     }
-    pts.push([Math.round(x), Math.round(y)]);
+    points.push([Math.round(x), Math.round(y)]);
   }
-  return pts;
+  return {
+    id,
+    name,
+    world: { width: straight + radius * 2 + margin * 2, height: radius * 2 + margin * 2 },
+    halfWidth,
+    curbWidth: 3,
+    grassWidth: 34,
+    points,
+    itemRows: [],
+    obstacles: [],
+    scenery: {
+      pond: { x: CX + straight / 2, y: CY, rx: Math.max(40, straight * 0.2), ry: Math.max(20, radius * 0.29) },
+      trees: 150,
+      flowers: 260,
+      ...scenery,
+    },
+  };
 }
 
-export default {
-  id: 'test-oval',
-  name: 'TEST OVAL',
-  world: { width: STRAIGHT + RADIUS * 2 + MARGIN * 2, height: RADIUS * 2 + MARGIN * 2 },
-  halfWidth: 46,
-  curbWidth: 3,
-  grassWidth: 34,
-  points: stadium(),
-  itemRows: [],
-  obstacles: [],
-  scenery: {
-    pond: { x: CX + STRAIGHT / 2, y: CY, rx: 150, ry: 55 },
-    trees: 150,
-    flowers: 260,
-  },
-};
+export default makeOval({ id: 'test-oval', name: 'TEST OVAL', straight: 760, radius: 190, halfWidth: 46 });

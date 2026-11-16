@@ -36,6 +36,12 @@ function describeRuns(runs) {
   add('spun by hunters', 'huntedSpins');
   add('knocked out at s', 'outAt');
   add('most potatoes at once', 'potatoesMax');
+  add('busts', 'busts');
+  add('cops spun', 'copsSpun');
+  add('traffic spun', 'trafficHit');
+  add('auto slingshots', 'autoSlingshots');
+  const caught = runs.filter((r) => r.caught).length;
+  if (caught) bits.push(`caught in ${caught} of ${runs.length}`);
   return `${bits.join(' · ')} (averages per run)`;
 }
 

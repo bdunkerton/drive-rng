@@ -15,6 +15,7 @@ export class Telemetry {
       nearMisses: 0, focusSeconds: 0,
       bombUses: 0, charged: 0, bombSpins: 0, bombChains: 0,
       huntedSpins: 0, outAt: null, potatoesMax: 0,
+      busts: 0, caught: false, copsSpun: 0, trafficHit: 0, autoSlingshots: 0,
     };
     const t = this.t;
     const on = (type, fn) => race.events.on(type, fn);
@@ -49,6 +50,14 @@ export class Telemetry {
         t.bombChains += chained;
       }),
       on('ram', ({ by, kart }) => kart === p && by.hunter && t.huntedSpins++),
+      on('heist:bust', () => t.busts++),
+      on('heist:caught', () => (t.caught = true)),
+      on('hit', ({ kart, by }) => {
+        if (by !== p) return;
+        if (kart.cop) t.copsSpun++;
+        if (kart.traffic) t.trafficHit++;
+      }),
+      on('draft:slingshot', ({ kart, auto }) => kart === p && auto && t.autoSlingshots++),
       on('royale:out', ({ kart }) => kart === p && (t.outAt = Math.round(race.time))),
       on('finish', ({ kart, place, time }) => {
         if (kart !== p) return;

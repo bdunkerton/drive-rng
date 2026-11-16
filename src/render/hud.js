@@ -1,7 +1,7 @@
 // The race HUD: lap, timer, position, item slot, standings, speed bar, minimap,
 // and big centre banners (countdown, GO!, FINAL LAP!, FINISH!, WRONG WAY).
 
-import { VIEW } from '../config.js';
+import { VIEW, HEIST } from '../config.js';
 import { PAL, KART_COLOURS } from './palette.js';
 import { drawText, drawOutlinedText } from './font.js';
 import { paintMinimap } from './trackArt.js';
@@ -49,7 +49,13 @@ export class Hud {
       if (isPlayer(kart) && lap < race.laps - 1) this.show(`LAP ${lap + 1}`, PAL.white, 1.2, 3);
     });
     on('final-lap', ({ kart }) => isPlayer(kart) && this.show('FINAL LAP!', PAL.gold, 1.6, 3));
-    on('finish', ({ kart, place }) => isPlayer(kart) && this.show(`FINISH! ${ordinal(place)}`, PLACE_COLOURS[place - 1] ?? PAL.white, 3, 3));
+    on('finish', ({ kart, place }) => {
+      if (!isPlayer(kart)) return;
+      if (race.rules?.heist) this.show('GOT AWAY!', PAL.gold, 3, 3);
+      else this.show(`FINISH! ${ordinal(place)}`, PLACE_COLOURS[place - 1] ?? PAL.white, 3, 3);
+    });
+    on('heist:caught', () => this.show('CAUGHT!', PAL.danger, 3, 3));
+    on('royale:out', ({ kart }) => isPlayer(kart) && this.show('YOU ARE OUT!', PAL.danger, 2.5, 3));
     on('toast', ({ kart, text, colour }) => {
       if (!isPlayer(kart)) return;
       this.toasts.push({ text, colour: TOAST_COLOURS[colour] ?? PAL.white, born: this.clock });
@@ -86,9 +92,16 @@ export class Hud {
     const best = p.lapTimes.length ? Math.min(...p.lapTimes) : null;
     if (best !== null) drawText(g, `BEST ${formatTime(best)}`, 6, 22, { color: PAL.silver });
 
-    // Standings, left side.
+    // Standings, left side (Heist: busts and the cops instead).
     let y = 36;
-    for (const k of race.order) {
+    if (race.rules?.heist && race.player) {
+      const busts = race.player.busts ?? 0;
+      drawText(g, `BUSTS ${busts}/${HEIST.busts}`, 6, y, { color: busts ? PAL.danger : PAL.white });
+      const cops = race.karts.filter((k) => k.cop);
+      const nearest = Math.min(...cops.map((c) => race.player.progress - c.progress).filter((d) => d > 0), Infinity);
+      if (Number.isFinite(nearest)) drawText(g, `COP ${Math.round(nearest)} BEHIND`, 6, y + 8, { color: nearest < 80 && Math.floor(this.clock * 6) % 2 ? PAL.danger : PAL.silver });
+    }
+    for (const k of race.rules?.heist ? [] : race.order) {
       const col = KART_COLOURS[k.color]?.body ?? PAL.white;
       g.fillStyle = PAL.black;
       g.fillRect(5, y - 1, 5, 7);
@@ -99,7 +112,7 @@ export class Hud {
     }
 
     // Position, top right.
-    if (race.player) {
+    if (race.player && !race.rules?.heist) {
       const pos = race.player.position;
       const text = ordinal(pos);
       drawOutlinedText(g, text, VIEW.width - 8, 5, { color: PLACE_COLOURS[pos - 1] ?? PAL.white, scale: 3, align: 'right' });
@@ -273,6 +286,16 @@ export class Hud {
     const karts = [...this.race.karts].sort((a, b) => (a.isPlayer ? 1 : 0) - (b.isPlayer ? 1 : 0));
     for (const k of karts) {
       const [mx, my] = m.toMap(k.x, k.y);
+      if (k.traffic) {
+        g.fillStyle = '#6a6e78';
+        g.fillRect(x + mx, y + my, 1, 1);
+        continue;
+      }
+      if (k.cop) {
+        g.fillStyle = Math.floor(this.clock * 6) % 2 ? '#e0463a' : '#3f73dc';
+        g.fillRect(x + mx - 1, y + my - 1, 3, 3);
+        continue;
+      }
       if (k.isPlayer && Math.floor(this.clock * 4) % 2 === 0) {
         g.fillStyle = PAL.white;
         g.fillRect(x + mx - 2, y + my - 2, 5, 5);

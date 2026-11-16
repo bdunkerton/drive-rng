@@ -240,7 +240,7 @@ export class RaceScene {
       g.fillStyle = KART_COLOURS[r.color]?.body ?? PAL.white;
       g.fillRect(x + 36, yy, 3, 5);
       drawText(g, r.name, x + 43, yy, { color: colour });
-      drawText(g, r.out ? 'OUT' : r.finished ? formatTime(r.time) : `LAP ${r.lapsDone + 1}`, x + 118, yy, { color: colour });
+      drawText(g, r.caught ? 'CAUGHT' : r.out ? 'OUT' : r.finished ? formatTime(r.time) : `LAP ${r.lapsDone + 1}`, x + 118, yy, { color: colour });
       drawText(g, formatTime(r.bestLap), x + 166, yy, { color: colour });
     });
     if (Math.floor(this.clock * 2) % 2 === 0) {

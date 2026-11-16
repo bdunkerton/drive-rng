@@ -12,6 +12,8 @@ export function describeRunsShort(runs) {
   if (last.nearMisses || last.focusSeconds) latest.push(`${last.nearMisses} near misses, ${last.focusSeconds}s focus`);
   if (last.bombUses) latest.push(`${last.bombUses} time bombs, ${last.charged} charged, ${last.bombSpins + last.bombChains} blown up`);
   if (last.huntedSpins) latest.push(`spun by hunters ${last.huntedSpins}x`);
+  if (last.busts || last.caught) latest.push(last.caught ? 'CAUGHT' : `${last.busts} busts`);
+  if (last.copsSpun) latest.push(`${last.copsSpun} cops spun`);
   if (last.outAt) latest.push(`knocked out at ${last.outAt}s`);
   if (last.spunOut) latest.push(`spun out ${last.spunOut}x`);
   return `${bits[0]} ${latest.join(', ')}.`;
