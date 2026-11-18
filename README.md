@@ -126,8 +126,6 @@ Scenarios live in `src/lab/scenarios.js`; each one switches race rules on (`draf
 | BULLRING ROYALE | Potato Royale on the Bullring, a tiny oval (8 s laps): a potato's fuse keeps burning through passes, and fuses shorten as karts drop |
 | HEIST | You, 18 slow traffic cars and 3 fast cops. A cop that spins you is a bust; 3 busts and you're caught. Near misses earn the Time Bomb. 3 laps to get away |
 
-Feedback now needs a vote (keep it / meh / drop it) before it saves.
-
 **Batch 2 (archived, after playtest #7):**
 
 | Scenario | Tries out |

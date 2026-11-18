@@ -91,13 +91,7 @@ export function openFeedback({ scenario, runsText, onClose }) {
   });
   const note = el('textarea', { placeholder: 'What happened? What felt good, what felt bad, what would you change?' });
   let close = () => {};
-  const need = el('div', { class: 'hint' }, '');
   const finish = (next) => {
-    if (next !== 'cancel' && !vote) {
-      need.textContent = 'Pick KEEP IT, MEH or DROP IT first: the votes are how Claude knows what is winning.';
-      need.style.color = '#f05a4a';
-      return;
-    }
     if (next !== 'cancel') {
       labStore.addFeedback({ scenario: scenario.id, vote, tags: [...tags], note: note.value.trim() });
     }
@@ -120,8 +114,7 @@ export function openFeedback({ scenario, runsText, onClose }) {
       el('button', { type: 'button', onclick: () => finish('lab') }, 'SAVE & BACK TO LAB'),
       el('button', { type: 'button', class: 'primary', onclick: () => finish('again') }, 'SAVE & PLAY AGAIN'),
     ),
-    need,
-    el('div', { class: 'hint' }, 'Saved on this computer. Send it all to Claude from the lab menu.'),
+    el('div', { class: 'hint' }, 'Vote and tags are optional. Saved on this computer; send it all to Claude from the lab menu.'),
   );
   close = overlay(panel, () => finish('cancel'));
   setTimeout(() => note.focus(), 0);
