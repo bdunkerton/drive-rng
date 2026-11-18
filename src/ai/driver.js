@@ -77,22 +77,25 @@ export class AIDriver {
 
     // --- Steering -------------------------------------------------------------
     // Swerving round a stack, it aims at the gap itself rather than far up the road.
-    const aheadS = kart.s + (avoid !== null ? clamp(avoid, 30, look) : look);
-    const line = this.traffic ? 0 : track.racingLineAt(aheadS) * this.skill;
+    // A cop intercepting you drives the wrong way round: aim back down the track.
+    const wrongWay = tag?.mode === 'intercept';
+    const aheadS = wrongWay ? kart.s - look * 1.2 : kart.s + (avoid !== null ? clamp(avoid, 30, look) : look);
+    const line = this.traffic || wrongWay ? 0 : track.racingLineAt(aheadS) * this.skill;
     const offset = clamp(line + this.lane, -track.halfWidth + 5, track.halfWidth - 5);
     let target = track.pointAt(aheadS, offset);
     // Close enough to tag: drive straight at them (leading them a touch).
     if (tag?.mode === 'chase' && tag.gap < 70) {
       target = { x: tag.kart.x + tag.kart.vx * 0.15, y: tag.kart.y + tag.kart.vy * 0.15 };
     }
-    // Hunting: close in, then drive at a rear corner.
-    if (tag?.mode === 'hunt' && tag.aim) target = tag.aim;
+    // Hunting: close in, then drive at a rear corner. (In the bowl, chasing and fleeing aim
+    // straight at a point too, and so does a cop about to hit you head-on.)
+    if (tag?.aim && (tag.mode === 'hunt' || tag.mode === 'intercept' || race.track.def.bowl)) target = tag.aim;
     const desired = Math.atan2(target.y - kart.y, target.x - kart.x);
     const turn = angleDiff(kart.heading, desired);
     let steer = clamp(turn * 2.8, -1, 1);
 
     // --- Speed planning -------------------------------------------------------
-    let targetSpeed = Math.min(stats.maxSpeed * this.skill, this.planSpeed(kart, race, stats));
+    let targetSpeed = Math.min(stats.maxSpeed * this.skill, this.planSpeed(kart, race, stats, wrongWay ? -1 : 1));
     if (Math.abs(turn) > 0.7) targetSpeed *= 0.7;
     // Leading with the potato and nobody ahead: lift and let the kart behind run into you.
     if (tag?.mode === 'brake-check' && tag.gap < 45) targetSpeed *= 0.75;
@@ -147,6 +150,41 @@ export class AIDriver {
   }
 
   /**
+   * Tag in the bowl (no line to follow): holders drive straight at the nearest kart they
+   * can tag; anyone near a holder drives straight away from it, sliding along the wall
+   * rather than into it.
+   */
+  playTagInBowl(kart, race, potatoes) {
+    const mine = potatoes.find((p) => p.holder === kart);
+    const dist = (k) => Math.hypot(k.x - kart.x, k.y - kart.y);
+    if (mine) {
+      let best = null;
+      for (const k of race.karts) if (k !== kart && mine.canTake(k) && (!best || dist(k) < dist(best))) best = k;
+      if (!best) return null;
+      const lead = Math.min(0.4, dist(best) / 300);
+      return { mode: 'chase', kart: best, gap: dist(best), lane: best.lateral, aim: { x: best.x + best.vx * lead, y: best.y + best.vy * lead } };
+    }
+    let h = null;
+    for (const p of potatoes) if (p.canTake(kart) && (!h || dist(p.holder) < dist(h))) h = p.holder;
+    if (!h || dist(h) > 130) return null;
+    let ax = kart.x - h.x;
+    let ay = kart.y - h.y;
+    const n = Math.hypot(ax, ay) || 1;
+    ax /= n;
+    ay /= n;
+    const track = race.track;
+    const probe = track.project(kart.x + ax * 60, kart.y + ay * 60);
+    if (Math.abs(probe.lateral) > track.halfWidth - 12) {
+      // The wall's that way: turn along it, whichever way we're already going.
+      const left = [-ay, ax];
+      const right = [ay, -ax];
+      const pick = left[0] * kart.vx + left[1] * kart.vy >= right[0] * kart.vx + right[1] * kart.vy ? left : right;
+      [ax, ay] = pick;
+    }
+    return { mode: 'flee', kart: h, gap: dist(h), lane: kart.lateral, aim: { x: kart.x + ax * 80, y: kart.y + ay * 80 } };
+  }
+
+  /**
    * A hunter's plan: get behind the player and drive into a rear corner (a PIT); if it's
    * just ahead of the player instead, sit in the player's lane. Backs off for a while
    * after a successful hit.
@@ -154,8 +192,18 @@ export class AIDriver {
   playHunt(kart, race) {
     const p = race.player;
     if (!p || p.finished || p.effects.has('spinout') || race.time < (kart.huntCooldownUntil ?? 0)) return null;
-    const gap = p.progress - kart.progress;
+    let gap = p.progress - kart.progress;
     const cop = kart.cop;
+    // Heist 3: cops take the shortest way round to you, and that can mean the wrong way.
+    if (cop && race.rules?.heist === 3) {
+      gap = loopDelta(kart.s, p.s, race.track.length);
+      if (gap < 0) {
+        const fx = Math.cos(p.heading);
+        const fy = Math.sin(p.heading);
+        const aim = -gap < 110 ? { x: p.x + fx * 6 + p.vx * 0.2, y: p.y + fy * 6 + p.vy * 0.2 } : null;
+        return { mode: 'intercept', kart: p, gap: -gap, lane: p.lateral, aim };
+      }
+    }
     if (gap < 0 && -gap < HUNT.blockRange) return { mode: 'block', kart: p, gap: -gap, lane: p.lateral };
     // A cop that's got ahead of you waits for you to come by (then chases again).
     if (cop && gap < 0) return { mode: 'wait', kart: p, gap: -gap, lane: p.lateral };
@@ -180,6 +228,7 @@ export class AIDriver {
   playTag(kart, race) {
     const potatoes = race.potatoes?.filter((p) => p.holder) ?? [];
     if (!potatoes.length) return null;
+    if (race.track.def.bowl) return this.playTagInBowl(kart, race, potatoes);
     const edge = race.track.halfWidth - 8;
     const mine = potatoes.find((p) => p.holder === kart);
     if (mine) {
@@ -267,7 +316,7 @@ export class AIDriver {
    * stretch of road: for each point ahead, the speed its steering can hold through that
    * curve, plus how much it could brake away before getting there.
    */
-  planSpeed(kart, race, stats) {
+  planSpeed(kart, race, stats, dir = 1) {
     const track = race.track;
     const skillT = clamp((this.skill - AI.skillMin) / (AI.skillMax - AI.skillMin || 1), 0, 1);
     // Steering available at low speed, and how much of it fades by top speed.
@@ -277,7 +326,7 @@ export class AIDriver {
     let best = Infinity;
     for (let d = 0; d <= AI.planAhead; d += 8) {
       // The racing line cuts corners, so the curve it actually drives is a bit gentler.
-      const k = Math.abs(track.curvatureAt(kart.s + d)) * 0.8;
+      const k = Math.abs(track.curvatureAt(kart.s + dir * d)) * 0.8;
       if (k < 1e-4) continue;
       // v * k = t0 * (1 - fade * v)  =>  v = t0 / (k + t0 * fade)
       const corner = t0 / (k + t0 * fade);

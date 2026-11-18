@@ -16,7 +16,7 @@ import { HumanController } from './controllers.js';
 import { hitKart } from './hits.js';
 import { Potato } from './potato.js';
 import { setupHeist, bust } from './heist.js';
-import { RING_STAGES } from '../tracks/ring.js';
+import { RING_STAGES, BOWL_STAGES } from '../tracks/ring.js';
 import { AIDriver } from '../ai/driver.js';
 
 export const ROSTER = [
@@ -84,7 +84,8 @@ export class Race {
     this.rules = { ...DEFAULT_RULES, potato: opts.potato ?? !this.itemsOn, ...opts.rules };
     // Potatoes: one normally; Potato Royale adds more as karts drop out (see eliminate).
     if (this.rules.royale) this.laps = 999; // royale ends when one kart is left, not on laps
-    this.potatoes = this.rules.potato || this.rules.royale ? [new Potato(this, { royale: !!this.rules.royale, keepFuse: this.rules.royale === 2 })] : [];
+    const keepFuse = this.rules.royale >= 2;
+    this.potatoes = this.rules.potato || this.rules.royale ? [new Potato(this, { royale: !!this.rules.royale, keepFuse })] : [];
     this.potato = this.potatoes[0] ?? null;
     this.out = []; // Royale: karts knocked out, in order
 
@@ -139,6 +140,10 @@ export class Race {
       this.player.tutorialFuse = true;
     }
     for (const kart of this.karts) this.applyTrack(kart);
+    // Royale 3: about one potato per three karts right from the start (staggered arrivals).
+    if (this.rules.royale === 3) {
+      for (let i = 1; i < this.wantedPotatoes(); i++) this.potatoes.push(new Potato(this, { royale: true, keepFuse: true, respawnIn: POTATO.firstDelay + 0.7 * i }));
+    }
 
     /** @type {any[]} */
     this.entities = [];
@@ -176,6 +181,7 @@ export class Race {
   /** Royale: how many potatoes there should be for the karts still in. */
   wantedPotatoes() {
     const left = this.karts.length;
+    if (this.rules.royale === 3) return Math.max(1, Math.min(ROYALE.denseMax, Math.round(left / ROYALE.dense)));
     return Math.max(1, Math.min(1 + this.out.length, ROYALE.maxPotatoes, Math.floor(left / ROYALE.kartsPerPotato)));
   }
 
@@ -195,13 +201,14 @@ export class Race {
     // Escalate: add potatoes up to the number wanted for the karts left.
     const live = this.potatoes.filter((p) => !p.retired).length;
     for (let i = live; i < this.wantedPotatoes(); i++) {
-      this.potatoes.push(new Potato(this, { royale: true, keepFuse: this.rules.royale === 2, respawnIn: POTATO.respawnSeconds + 0.5 * i }));
+      this.potatoes.push(new Potato(this, { royale: true, keepFuse: this.rules.royale >= 2, respawnIn: POTATO.respawnSeconds + 0.5 * i }));
       this.events.emit('royale:potato', { count: i + 1 });
     }
     if (left <= 1 || kart.isPlayer) return this.endRoyale();
     // Shrinking arena: down to the next ring once few enough karts are left.
     if (this.rules.shrink) {
-      const stage = [...RING_STAGES].reverse().find(([atMost]) => left <= atMost);
+      const stages = this.rules.shrink === 2 ? BOWL_STAGES : RING_STAGES;
+      const stage = [...stages].reverse().find(([atMost]) => left <= atMost);
       if (stage && stage[1] !== this.track.def && stage[1] !== this.pendingShrink?.def) {
         this.pendingShrink = { def: stage[1], at: this.time + ARENA_WARN };
         this.events.emit('arena:warn', { left });
@@ -472,11 +479,13 @@ export class Race {
     const by = Math.sin(target.heading);
     // The hit lands on the attacker's nose...
     if (nx * ax + ny * ay < RAM.nose) return false;
+    // Heist 3 cops hit you from any angle, head-on included.
+    const anyAngle = attacker.cop && target.isPlayer && this.rules.heist === 3;
     // ...the two aren't meeting head-on...
-    if (ax * bx + ay * by < RAM.notHeadOn) return false;
+    if (!anyAngle && ax * bx + ay * by < RAM.notHeadOn) return false;
     // ...and it lands off the target's centreline (a rear quarter or a side), not dead centre.
     const offCentre = Math.abs(nx * -by + ny * bx);
-    if (offCentre < RAM.offCentre) {
+    if (!anyAngle && offCentre < RAM.offCentre) {
       if (nx * bx + ny * by > 0) this.events.emit('ram:shove', { by: attacker, kart: target });
       return false;
     }
@@ -570,6 +579,7 @@ export class Race {
     if (want) {
       if (!this.bullet.active) this.events.emit('bomb:start', { kart: p });
       this.bullet.active = true;
+      p.addEffect({ id: 'warp', duration: 0.1, stacking: 'refresh', modifiers: { grip: TIMEBOMB.warpGrip, turnRate: TIMEBOMB.warpTurn } }, this);
       p.focus = Math.max(0, p.focus - TIMEBOMB.drainPerSecond * dt);
       return;
     }

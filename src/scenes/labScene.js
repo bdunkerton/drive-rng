@@ -8,7 +8,7 @@ import { drawText, drawOutlinedText } from '../render/font.js';
 import { drawPanel } from '../render/menu.js';
 import { PAL } from '../render/palette.js';
 import oval from '../tracks/oval.js';
-import { SCENARIOS as ALL_SCENARIOS, LAB_VERSION, LAB_DEFAULTS, CURRENT_BATCH } from '../lab/scenarios.js';
+import { SCENARIOS as ALL_SCENARIOS, LAB_VERSION, LAB_DEFAULTS, CURRENT_BATCH, inBatch } from '../lab/scenarios.js';
 import { labStore } from '../lab/store.js';
 import { openFeedback, openSend } from '../lab/feedback.js';
 import { describeRunsShort } from '../lab/runs.js';
@@ -33,7 +33,7 @@ export class LabScene {
   constructor(game, { select, all = false } = {}) {
     this.game = game;
     // The current batch, or everything (archived too) with ?lab=all.
-    this.scenarios = all ? ALL_SCENARIOS : ALL_SCENARIOS.filter((s) => s.batch === CURRENT_BATCH);
+    this.scenarios = all ? ALL_SCENARIOS : ALL_SCENARIOS.filter((s) => inBatch(s, CURRENT_BATCH));
     this.clock = 0;
     const i = this.scenarios.findIndex((s) => s.id === select);
     this.index = i >= 0 ? i : 0;

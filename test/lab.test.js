@@ -226,8 +226,9 @@ test('potato royale: swaps are instant, but not straight back until you separate
 
 test('the lab menu shows the current batch; earlier ones are archived', async () => {
   const { CURRENT_BATCH } = await import('../src/lab/scenarios.js');
-  assert.equal(CURRENT_BATCH, 4);
-  assert.deepEqual(SCENARIOS.filter((s) => s.batch === 4).map((s) => s.id), ['pack4', 'shrink', 'heist2']);
+  const { inBatch } = await import('../src/lab/scenarios.js');
+  assert.equal(CURRENT_BATCH, 5);
+  assert.deepEqual(SCENARIOS.filter((s) => inBatch(s, 5)).map((s) => s.id), ['pack4', 'bowl', 'heist3']);
 });
 
 // --- Batch 3 -----------------------------------------------------------------
@@ -382,4 +383,66 @@ test('posting to GitHub uses a short link with the readable summary', () => {
   assert.ok(url.length <= 6000);
   assert.ok(!decodeURIComponent(url).includes('```json'), 'no raw json in the link');
   assert.ok(text.includes('```json'), 'the copied text keeps the raw data');
+});
+
+// --- Batch 5 -----------------------------------------------------------------
+
+test('bowl royale: four potatoes from the start, then a wide ring, then the bowl', async () => {
+  const ring = (await import('../src/tracks/bullring.js')).default;
+  const race = new Race({ track: ring, seed: 3, rivals: 10, countdown: 0, humanInput: null, items: false, rules: { potato: false, royale: 3, shrink: 2 } });
+  assert.equal(race.potatoes.length, 4);
+  const ids = [];
+  race.events.on('arena:shrink', ({ track }) => ids.push(track.id));
+  let most = 0;
+  for (let i = 0; i < 60 * 200 && race.phase !== 'done'; i++) {
+    race.step(DT);
+    most = Math.max(most, race.potatoes.filter((p) => p.holder).length);
+    for (const k of race.karts) assert.ok(Math.abs(k.lateral) <= race.track.fenceOffset + 1);
+  }
+  assert.equal(race.phase, 'done');
+  assert.deepEqual(ids, ['ring-wide', 'bowl']);
+  assert.ok(most >= 3, `potatoes in play at once: ${most}`);
+});
+
+test('the bowl is road all the way across', async () => {
+  const { bowl } = await import('../src/tracks/ring.js');
+  const t = new Track(bowl);
+  const cx = (Math.min(...t.xs) + Math.max(...t.xs)) / 2;
+  const cy = (Math.min(...t.ys) + Math.max(...t.ys)) / 2;
+  assert.equal(t.surfaceAt(t.project(cx, cy).lateral), 'road', 'the middle is drivable');
+});
+
+test('heist 3: some cops start ahead, and a cop behind you on the loop drives the wrong way at you', () => {
+  const input = { throttle: 0, brake: 0, steer: 0, useItem: false };
+  const race = new Race({ track: oval, seed: 6, rivals: 0, countdown: 0, humanInput: input, laps: 3, items: false, rules: { potato: false, heist: 3, timebomb: true } });
+  const cops = race.karts.filter((k) => k.cop);
+  const ahead = cops.filter((c) => {
+    const d = ((c.s - race.player.s) % race.track.length + race.track.length) % race.track.length;
+    return d > 0 && d < race.track.length / 2;
+  });
+  assert.ok(ahead.length >= 1, 'a cop up the road');
+  for (let i = 0; i < 60 * 6; i++) race.step(DT);
+  const wrongWay = cops.some((c) => Math.cos(c.heading - race.track.headingAt(c.s)) < -0.5);
+  assert.ok(wrongWay, 'a cop has turned round to come at you');
+});
+
+test('heist 3: scattered roadblocks still leave a way through every row', () => {
+  const input = { throttle: 0, brake: 0, steer: 0, useItem: false };
+  const race = new Race({ track: oval, seed: 8, rivals: 0, countdown: 0, humanInput: input, laps: 3, items: false, rules: { potato: false, heist: 3 } });
+  race.events.emit('lap', { kart: race.player, lap: 1, lapTime: 15 });
+  const blocks = race.entities.filter((e) => e.roadblock);
+  assert.ok(blocks.length > 15);
+  // Not one straight line: the stacks spread along the road.
+  const ss = blocks.map((b) => b.s).sort((x, y) => x - y);
+  assert.ok(ss.some((s, i) => i && s - ss[i - 1] > 20), 'staggered rows');
+});
+
+test('time warp: full speed for you, plus extra grip and steering', () => {
+  const { race, me, input } = pair({ timebomb: true }, { gap: 200, ahead: 100, behind: 150 });
+  me.focus = 1;
+  input.focus = true;
+  race.step(DT);
+  assert.ok(race.bullet.active);
+  const st = me.stats();
+  assert.ok(st.grip > 5.5 * 1.3 && st.turnRate > 3.3 * 1.2);
 });
