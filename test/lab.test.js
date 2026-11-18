@@ -124,7 +124,7 @@ test('feedback reports read well and fit in a GitHub link', () => {
   assert.match(r.human, /### HOT POTATO — UPVOTE/);
   assert.match(r.human, /Tags: FUN, WANT MORE/);
   const { url } = issueUrl(entries);
-  assert.ok(url.length <= 7800, `url ${url.length}`);
+  assert.ok(url.length <= 6000, `url ${url.length}`);
   assert.match(url, /labels=playtest/);
 });
 
@@ -226,8 +226,8 @@ test('potato royale: swaps are instant, but not straight back until you separate
 
 test('the lab menu shows the current batch; earlier ones are archived', async () => {
   const { CURRENT_BATCH } = await import('../src/lab/scenarios.js');
-  assert.equal(CURRENT_BATCH, 3);
-  assert.deepEqual(SCENARIOS.filter((s) => s.batch === 3).map((s) => s.id), ['pack3', 'royale2', 'heist']);
+  assert.equal(CURRENT_BATCH, 4);
+  assert.deepEqual(SCENARIOS.filter((s) => s.batch === 4).map((s) => s.id), ['pack4', 'shrink', 'heist2']);
 });
 
 // --- Batch 3 -----------------------------------------------------------------
@@ -295,4 +295,91 @@ test('heist: traffic never counts as finishing and cops never lap into the resul
   const race = new Race({ track: oval, seed: 4, rivals: 0, countdown: 0, humanInput: null, laps: 1, items: false, rules: { potato: false, heist: true } });
   for (let i = 0; i < 60 * 60; i++) race.step(DT);
   assert.ok(race.karts.filter((k) => k.traffic || k.cop).every((k) => !k.finished));
+});
+
+// --- Batch 4 -----------------------------------------------------------------
+
+test('every lab track is a sound loop', async () => {
+  const { RING_STAGES } = await import('../src/tracks/ring.js');
+  const short = (await import('../src/tracks/shortOval.js')).default;
+  for (const def of [short, ...RING_STAGES.map(([, d]) => d)]) {
+    const t = new Track(def);
+    assert.ok(t.length > 500, def.id);
+    assert.ok(def.points.length >= 10, def.id);
+  }
+});
+
+test('slingshot v2: the grid does not all fire on the same frame', () => {
+  const race = new Race({ track: oval, seed: 2, rivals: 10, countdown: 0, humanInput: null, laps: 3, items: false, rules: { potato: false, slingshot: 2 } });
+  const times = [];
+  race.events.on('draft:slingshot', ({ auto }) => auto && times.push(Math.round(race.time * 60)));
+  while (race.time < 4) race.step(DT);
+  const counts = {};
+  for (const t of times) counts[t] = (counts[t] ?? 0) + 1;
+  assert.ok(Math.max(...Object.values(counts)) <= 2, `same-frame slingshots: ${JSON.stringify(counts)}`);
+});
+
+test('shrinking royale: the arena steps down as karts drop, and everyone stays on the track', async () => {
+  const ring = (await import('../src/tracks/bullring.js')).default;
+  const race = new Race({ track: ring, seed: 1, rivals: 10, countdown: 0, humanInput: null, items: false, rules: { potato: false, royale: 2, shrink: true } });
+  const ids = [];
+  race.events.on('arena:shrink', ({ track }) => ids.push(track.id));
+  for (let i = 0; i < 60 * 300 && race.phase !== 'done'; i++) {
+    race.step(DT);
+    for (const k of race.karts) assert.ok(Math.abs(k.lateral) <= race.track.fenceOffset + 1, 'inside the fence');
+  }
+  assert.equal(race.phase, 'done');
+  assert.deepEqual(ids, ['ring-small', 'ring-tiny']);
+});
+
+test('royale: a potato holder with someone right behind backs into them', () => {
+  const race = new Race({ track: oval, seed: 1, rivals: 2, countdown: 0, humanInput: null, items: false, rules: { potato: false, royale: 2 } });
+  const [a, b, c] = race.karts;
+  const pt = race.track.pointAt(500);
+  const fx = Math.cos(pt.angle);
+  const fy = Math.sin(pt.angle);
+  a.x = pt.x; a.y = pt.y; a.heading = pt.angle; a.vx = fx * 60; a.vy = fy * 60;
+  b.x = pt.x - fx * 40; b.y = pt.y - fy * 40; b.heading = pt.angle; b.vx = fx * 30; b.vy = fy * 30;
+  c.x = pt.x + fx * 900; c.y = pt.y + fy * 900;
+  b.controller = new IdleController(); // a sitting duck behind the holder
+  for (const k of race.karts) race.applyTrack(k);
+  race.potatoes[0].give(a, null);
+  let passed = false;
+  race.events.on('potato:pass', ({ from, to }) => (passed = passed || (from === a && to === b)));
+  for (let i = 0; i < 60 * 4 && !passed; i++) race.step(DT);
+  assert.ok(passed);
+});
+
+test('heist 2: four cops to start; each new lap adds cops and roadblocks with a gap', () => {
+  const input = { throttle: 0, brake: 0, steer: 0, useItem: false };
+  const race = new Race({ track: oval, seed: 6, rivals: 0, countdown: 0, humanInput: input, laps: 3, items: false, rules: { potato: false, heist: 2, timebomb: true } });
+  assert.equal(race.karts.filter((k) => k.cop).length, 4);
+  const speed0 = race.karts.find((k) => k.cop).base.maxSpeed;
+  race.events.emit('lap', { kart: race.player, lap: 1, lapTime: 15 });
+  assert.equal(race.karts.filter((k) => k.cop).length, 6);
+  assert.ok(race.karts.find((k) => k.cop).base.maxSpeed > speed0);
+  const blocks = race.entities.filter((e) => e.roadblock);
+  assert.ok(blocks.length > 10);
+  // Every roadblock row leaves a way through on the road.
+  const rows = new Map();
+  for (const b of blocks) {
+    const key = Math.round(b.s);
+    rows.set(key, [...(rows.get(key) ?? []), b.lateral]);
+  }
+  assert.equal(rows.size, 2);
+  for (const lats of rows.values()) {
+    const sorted = lats.sort((x, y) => x - y);
+    let widest = 0;
+    for (let i = 1; i < sorted.length; i++) widest = Math.max(widest, sorted[i] - sorted[i - 1]);
+    assert.ok(widest >= 30, `gap ${widest}`);
+  }
+});
+
+test('posting to GitHub uses a short link with the readable summary', () => {
+  const runs = Array.from({ length: 40 }, () => ({ place: 3, of: 11, rams: 2, busts: 1, nearMisses: 12 }));
+  const entries = SCENARIOS.map((s) => ({ scenario: s.id, vote: null, tags: [], note: 'y'.repeat(900), runs }));
+  const { url, text } = issueUrl(entries);
+  assert.ok(url.length <= 6000);
+  assert.ok(!decodeURIComponent(url).includes('```json'), 'no raw json in the link');
+  assert.ok(text.includes('```json'), 'the copied text keeps the raw data');
 });

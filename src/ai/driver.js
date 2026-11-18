@@ -109,6 +109,13 @@ export class AIDriver {
       throttle = 0;
     }
 
+    // Royale: backing into the kart behind with the potato.
+    if (tag?.mode === 'back') {
+      throttle = 0;
+      brake = 1;
+      if (kart.forwardSpeed < 5) steer = 0; // reversing: don't steer it round
+    }
+
     // --- Getting unstuck ------------------------------------------------------
     if (race.phase === 'racing' && this.reverseFor <= 0) {
       if (speed < 6) this.stuckFor += dt;
@@ -186,6 +193,13 @@ export class AIDriver {
           best = k;
           bestGap = gap;
         }
+      }
+      // Royale: someone right behind is a better target than someone far ahead: stop (or
+      // back up) into them.
+      if (race.rules?.royale) {
+        const behind = race.kartsBehind(kart).find((k) => mine.canTake(k));
+        const back = behind ? kart.progress - behind.progress : Infinity;
+        if (back < 70 && back < bestGap * 0.8) return { mode: 'back', kart: behind, gap: back, lane: lerp(this.laneBias, behind.lateral, this.skill) };
       }
       if (best) return { mode: 'chase', kart: best, gap: bestGap, lane: lerp(this.laneBias, best.lateral, this.skill) };
       // Nobody ahead worth chasing: sit in the line of the nearest kart behind.

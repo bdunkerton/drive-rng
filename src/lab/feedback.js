@@ -136,6 +136,15 @@ export function openSend({ onClose }) {
   }
   const { url, text } = issueUrl(entries);
   const status = el('div', { class: 'hint' }, '');
+  // Feedback stays "unsent" until you say it got through (a failed post loses nothing).
+  const clear = el('button', {
+    type: 'button',
+    style: 'display:none',
+    onclick: () => {
+      labStore.markSent();
+      done();
+    },
+  }, 'SENT IT: CLEAR');
   const panel = el(
     'div',
     { class: 'lab-panel' },
@@ -146,13 +155,14 @@ export function openSend({ onClose }) {
       'div',
       { class: 'actions' },
       el('button', { type: 'button', onclick: done }, 'CLOSE'),
+      clear,
       el('button', {
         type: 'button',
         onclick: async () => {
           try {
             await navigator.clipboard.writeText(text);
-            labStore.markSent();
-            status.textContent = 'Copied. Paste it into the chat with Claude.';
+            status.textContent = 'Copied. Paste it into the chat with Claude, then press CLEAR.';
+            clear.style.display = '';
           } catch {
             status.textContent = 'Copy was blocked by the browser: select the text above and copy it by hand.';
           }
@@ -162,9 +172,18 @@ export function openSend({ onClose }) {
         type: 'button',
         class: 'primary',
         onclick: () => {
-          window.open(url, '_blank', 'noopener');
-          labStore.markSent();
-          status.textContent = 'Opened GitHub in a new tab. Press "Submit new issue" there.';
+          // A real link click, which browsers don't treat as a pop-up.
+          const a = el('a', { href: url, target: '_blank', rel: 'noopener' });
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          clear.style.display = '';
+          status.innerHTML = '';
+          status.append(
+            'Opened GitHub in a new tab: press "Submit new issue" there. Nothing opened? ',
+            el('a', { href: url, target: '_blank', rel: 'noopener', style: 'color:#f2c14b' }, 'Open it here'),
+            ', or use COPY TEXT and paste it to Claude.',
+          );
         },
       }, 'POST TO GITHUB'),
     ),

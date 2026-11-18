@@ -55,6 +55,9 @@ export class Hud {
       else this.show(`FINISH! ${ordinal(place)}`, PLACE_COLOURS[place - 1] ?? PAL.white, 3, 3);
     });
     on('heist:caught', () => this.show('CAUGHT!', PAL.danger, 3, 3));
+    on('heist:escalate', ({ lap }) => this.show(`LAP ${lap}: MORE COPS!`, PAL.danger, 2, 2));
+    on('arena:warn', () => this.show('ARENA SHRINKING!', PAL.gold, 1.5, 2));
+    on('arena:shrink', ({ track }) => (this.minimap = paintMinimap(track, 70, 52)));
     on('royale:out', ({ kart }) => isPlayer(kart) && this.show('YOU ARE OUT!', PAL.danger, 2.5, 3));
     on('toast', ({ kart, text, colour }) => {
       if (!isPlayer(kart)) return;

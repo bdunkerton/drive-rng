@@ -105,6 +105,15 @@ export class RaceView {
     on('billiards:hit', ({ kart, chain }) => {
       this.particles.burst(kart.x, kart.y, 12 + chain * 4, [PAL.white, PAL.gold, PAL.boostHot], 60 + chain * 10, 0.4);
     });
+    on('arena:shrink', ({ track }) => {
+      if (!trackArtCache.has(track.id)) trackArtCache.set(track.id, paintTrack(track));
+      this.trackArt = trackArtCache.get(track.id);
+      this.particles = new Particles();
+      this.camX = this.target.x - VIEW.width / 2;
+      this.camY = this.target.y - VIEW.height / 2;
+      this.flash = 0.35;
+      this.shake = 3;
+    });
     on('bomb:charge', ({ kart }) => this.particles.burst(kart.x, kart.y, 8, ['#ffe066', '#e0463a', PAL.white], 40, 0.3));
     on('bomb:detonate', ({ kart, karts }) => {
       if (karts.length && kart === this.target) this.shake = Math.max(this.shake, Math.min(6, 2 + karts.length));
@@ -232,6 +241,7 @@ export class RaceView {
     this.camX = clamp(this.camX, 0, W - VIEW.width);
     this.camY = clamp(this.camY, 0, H - VIEW.height);
     this.shake = Math.max(0, this.shake - dt * 12);
+    if (this.flash > 0) this.flash -= dt;
   }
 
   draw(g) {
@@ -288,6 +298,10 @@ export class RaceView {
 
     this.particles.draw(g, camX, camY);
     this.drawPotatoPointer(g, camX, camY);
+    if (this.flash > 0) {
+      g.fillStyle = `rgba(255,255,255,${Math.min(0.8, this.flash * 2.4)})`;
+      g.fillRect(0, 0, VIEW.width, VIEW.height);
+    }
   }
 
   /** When the potato is off screen, an orange arrow at the edge points at whoever has it. */
