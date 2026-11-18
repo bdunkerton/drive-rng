@@ -200,27 +200,45 @@ function disc(g, cx, cy, r) {
 /** A small top-down picture of the course for the HUD minimap. */
 export function paintMinimap(track, maxW, maxH) {
   const pad = 3;
+  // The box takes in the whole road, not just the centreline, so a kart out on the edge
+  // of a wide road (or anywhere in the Bowl) still lands inside the map, to scale.
+  const edge = track.halfWidth + track.curbWidth;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (let i = 0; i < track.count; i++) {
-    minX = Math.min(minX, track.xs[i]);
-    maxX = Math.max(maxX, track.xs[i]);
-    minY = Math.min(minY, track.ys[i]);
-    maxY = Math.max(maxY, track.ys[i]);
+    minX = Math.min(minX, track.xs[i] - edge);
+    maxX = Math.max(maxX, track.xs[i] + edge);
+    minY = Math.min(minY, track.ys[i] - edge);
+    maxY = Math.max(maxY, track.ys[i] + edge);
   }
   const scale = Math.min((maxW - pad * 2) / (maxX - minX), (maxH - pad * 2) / (maxY - minY));
   const w = Math.ceil((maxX - minX) * scale + pad * 2);
   const h = Math.ceil((maxY - minY) * scale + pad * 2);
   const { canvas, g } = makeCanvas(w, h);
-  const toMap = (x, y) => [Math.round((x - minX) * scale + pad), Math.round((y - minY) * scale + pad)];
-  for (const [colour, thick] of [[PAL.black, 2], [PAL.silver, 1]]) {
+  const toMap = (x, y) => [
+    Math.max(0, Math.min(w - 1, Math.round((x - minX) * scale + pad))),
+    Math.max(0, Math.min(h - 1, Math.round((y - minY) * scale + pad))),
+  ];
+  // The road itself, drawn to scale (a ribbon round the loop; a solid shape for the Bowl).
+  const r = Math.max(1, track.halfWidth * scale);
+  g.fillStyle = '#3a3c46';
+  for (let i = 0; i < track.count; i += 2) {
+    const [x, y] = toMap(track.xs[i], track.ys[i]);
+    g.beginPath();
+    g.arc(x + 0.5, y + 0.5, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  // (The Bowl is all road: no centreline to show, just the shape.)
+  for (const [colour, thick] of track.def.bowl ? [] : [[PAL.black, 2], [PAL.silver, 1]]) {
     g.fillStyle = colour;
     for (let i = 0; i < track.count; i++) {
       const [x, y] = toMap(track.xs[i], track.ys[i]);
       g.fillRect(x - (thick === 2 ? 1 : 0), y - (thick === 2 ? 1 : 0), thick === 2 ? 3 : 1, thick === 2 ? 3 : 1);
     }
   }
-  const [sx, sy] = toMap(track.xs[0], track.ys[0]);
-  g.fillStyle = PAL.white;
-  g.fillRect(sx - 1, sy - 2, 2, 4);
+  if (!track.def.bowl) {
+    const [sx, sy] = toMap(track.xs[0], track.ys[0]);
+    g.fillStyle = PAL.white;
+    g.fillRect(sx - 1, sy - 2, 2, 4);
+  }
   return { canvas, toMap, width: w, height: h };
 }
