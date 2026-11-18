@@ -2,6 +2,7 @@
 // and big centre banners (countdown, GO!, FINAL LAP!, FINISH!, WRONG WAY).
 
 import { VIEW, HEIST } from '../config.js';
+import { loopDelta } from '../core/math.js';
 import { PAL, KART_COLOURS } from './palette.js';
 import { drawText, drawOutlinedText } from './font.js';
 import { paintMinimap } from './trackArt.js';
@@ -100,9 +101,19 @@ export class Hud {
     if (race.rules?.heist && race.player) {
       const busts = race.player.busts ?? 0;
       drawText(g, `BUSTS ${busts}/${HEIST.busts}`, 6, y, { color: busts ? PAL.danger : PAL.white });
-      const cops = race.karts.filter((k) => k.cop);
-      const nearest = Math.min(...cops.map((c) => race.player.progress - c.progress).filter((d) => d > 0), Infinity);
-      if (Number.isFinite(nearest)) drawText(g, `COP ${Math.round(nearest)} BEHIND`, 6, y + 8, { color: nearest < 80 && Math.floor(this.clock * 6) % 2 ? PAL.danger : PAL.silver });
+      // The nearest cop, the short way round the loop, ahead or behind.
+      const pl = race.player;
+      const len = race.track.length;
+      let best = null;
+      for (const c of race.karts) {
+        if (!c.cop) continue;
+        const d = loopDelta(pl.s, c.s, len); // > 0: the cop is ahead of you
+        if (!best || Math.abs(d) < Math.abs(best)) best = d;
+      }
+      if (best !== null) {
+        const near = Math.abs(best) < 80;
+        drawText(g, `COP ${Math.round(Math.abs(best))} ${best > 0 ? 'AHEAD' : 'BEHIND'}`, 6, y + 8, { color: near && Math.floor(this.clock * 6) % 2 ? PAL.danger : PAL.silver });
+      }
     }
     for (const k of race.rules?.heist ? [] : race.order) {
       const col = KART_COLOURS[k.color]?.body ?? PAL.white;

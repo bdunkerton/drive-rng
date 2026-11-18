@@ -3,9 +3,12 @@
 // list and bump `batch`, so feedback can say which round of ideas it was about.
 // `rules` switches mechanics on for the race (see DEFAULT_RULES in src/sim/race.js).
 
-export const LAB_VERSION = 'lab-4';
+export const LAB_VERSION = 'lab-5';
 /** The lab menu shows this batch (?lab=all shows every scenario, archived ones too). */
-export const CURRENT_BATCH = 4;
+export const CURRENT_BATCH = 5;
+
+/** Is this scenario in the given batch (its own, or carried over with `also`)? */
+export const inBatch = (s, batch) => s.batch === batch || (s.also ?? []).includes(batch);
 
 /**
  * @typedef {{ id: string, batch: number, name: string, pitch: string, how: string[],
@@ -139,6 +142,7 @@ export const SCENARIOS = [
     how: ['GET RIGHT ON A BUMPER', 'FULL CHARGE FIRES BY ITSELF'],
     rules: { draft: true, ram: true, slingshot: 2 },
     track: 'shortOval',
+    also: [5], // no feedback on it yet: carried into batch 5
     question: 'DOES THE PACK STAY TIGHT AND BUSY ALL RACE?',
   },
   {
@@ -161,6 +165,29 @@ export const SCENARIOS = [
     rules: { draft: true, ram: true, slingshot: 2, timebomb: true, heist: 2 },
     rivals: 0,
     question: 'DOES EACH LAP FEEL HARDER, AND IS THE TIME WARP NOW WORTH IT?',
+  },
+  // --- Batch 5 (after #13 and the first focus-group round: Royale is the focus, the
+  // arena ends as a bowl, cops come from both directions). ---
+  {
+    id: 'bowl',
+    batch: 5,
+    name: 'BOWL ROYALE',
+    pitch: 'ONE POTATO PER THREE KARTS FROM THE START (4 OF THEM). AT 7 LEFT THE ARENA DROPS TO A WIDE RING, AT 4 IT BECOMES A BOWL: ALL ROAD, NO LINE, JUST CHICKEN WITH THE POTATO.',
+    how: ['FUSES KEEP BURNING WHEN PASSED', 'IN THE BOWL THEY COME STRAIGHT AT YOU'],
+    rules: { draft: true, ram: true, slingshot: 2, royale: 3, shrink: 2 },
+    track: 'bullring',
+    laps: 99,
+    question: 'IS THE BOWL A GOOD FINALE? ENOUGH POTATOES EARLY ON?',
+  },
+  {
+    id: 'heist3',
+    batch: 5,
+    name: 'HEIST 3',
+    pitch: 'COPS COME FROM BOTH DIRECTIONS: SOME START UP THE ROAD AND DRIVE THE WRONG WAY STRAIGHT AT YOU. ROADBLOCKS ARE SCATTERED, STAGGERED TYRES YOU WEAVE THROUGH. TIME WARP NOW KEEPS YOUR FULL SPEED AND SHARPENS YOUR STEERING.',
+    how: ['HEAD-ON COPS BUST YOU TOO', 'WARP TO WEAVE A ROADBLOCK'],
+    rules: { draft: true, ram: true, slingshot: 2, timebomb: true, heist: 3 },
+    rivals: 0,
+    question: 'DO HEAD-ON COPS AND MESSY ROADBLOCKS MAKE THE WARP MATTER?',
   },
 ];
 

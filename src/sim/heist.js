@@ -35,10 +35,15 @@ export function setupHeist(race, aiRng) {
     race.karts.push(kart);
   }
   // Cops, lined up behind you, parked until a few seconds after GO.
-  const v2 = race.rules.heist === 2;
+  const v2 = race.rules.heist >= 2;
+  const v3 = race.rules.heist === 3;
   race.heist = { rng, nextId: id, cops: 0, lap: 0, speedUp: 1 };
   const copsAtStart = v2 ? HEIST.startCops2 : HEIST.cops;
-  for (let i = 0; i < copsAtStart; i++) addCop(race, start - HEIST.copStartGap - i * 30, ((i % 3) - 1) * 14, HEIST.copDelay);
+  for (let i = 0; i < copsAtStart; i++) {
+    // Heist 3: every other cop starts up the road ahead (and comes at you the wrong way).
+    if (v3 && i % 2 === 1) addCop(race, start + HEIST.copAheadGap + i * 220, ((i % 3) - 1) * 14, HEIST.copDelay);
+    else addCop(race, start - HEIST.copStartGap - i * 30, ((i % 3) - 1) * 14, HEIST.copDelay);
+  }
   if (race.player) race.player.busts = 0;
   // Heist 2: every new lap brings more (and faster) cops, and roadblocks.
   if (v2 && race.player) {
@@ -88,7 +93,11 @@ function escalate(race, lap) {
   h.speedUp += HEIST.copSpeedPerLap;
   for (const k of race.karts) if (k.cop) k.base.maxSpeed *= (h.speedUp) / (h.speedUp - HEIST.copSpeedPerLap);
   const newCops = HEIST.copsPerLap[lap] ?? HEIST.copsPerLap[HEIST.copsPerLap.length - 1];
-  for (let i = 0; i < newCops; i++) addCop(race, p.s - HEIST.copArriveBehind - i * 30, ((i % 3) - 1) * 16);
+  const v3 = race.rules.heist === 3;
+  for (let i = 0; i < newCops; i++) {
+    if (v3 && i % 2 === 1) addCop(race, p.s + HEIST.copAheadGap + i * 180, ((i % 3) - 1) * 16);
+    else addCop(race, p.s - HEIST.copArriveBehind - i * 30, ((i % 3) - 1) * 16);
+  }
   const blocks = HEIST.roadblocksPerLap[lap] ?? HEIST.roadblocksPerLap[HEIST.roadblocksPerLap.length - 1];
   const span = track.length - HEIST.roadblockAhead - 300;
   for (let i = 0; i < blocks; i++) addRoadblock(race, p.s + HEIST.roadblockAhead + ((i + h.rng.range(0.2, 0.8)) / blocks) * span);
@@ -98,6 +107,7 @@ function escalate(race, lap) {
 
 /** A row of tyre stacks right across the track (curb to fence) with one gap in it. */
 function addRoadblock(race, s) {
+  if (race.rules.heist === 3) return addScatteredRoadblock(race, s);
   const track = race.track;
   const h = race.heist;
   const edge = track.fenceOffset - 4;
@@ -124,5 +134,40 @@ export function bust(race, cop) {
     race.events.emit('race:end', { results: race.results() });
   } else {
     race.events.emit('toast', { kart: p, text: `BUSTED! ${p.busts}/${HEIST.busts}`, colour: 'bad' });
+  }
+}
+
+/**
+ * Heist 3 roadblock: not a neat line. Two or three staggered rows, each with its gap in a
+ * different place, every stack nudged about, and a few loose ones in between: you have to
+ * weave through it (which is what the time warp is for).
+ */
+function addScatteredRoadblock(race, s) {
+  const track = race.track;
+  const h = race.heist;
+  const rng = h.rng;
+  const edge = track.fenceOffset - 4;
+  const rows = rng.int(2, 3);
+  const half = HEIST.roadblockGap / 2 + 6;
+  let lastGap = null;
+  for (let r = 0; r < rows; r++) {
+    const rowS = s + r * HEIST.scatterRowGap;
+    // A gap on the other side of the road from the last row's, so the way through zigzags.
+    const reach = track.halfWidth - half;
+    const gapAt = lastGap === null ? rng.range(-reach, reach) : -Math.sign(lastGap || 1) * rng.range(reach * 0.3, reach);
+    lastGap = gapAt;
+    for (let lat = -edge; lat <= edge; lat += HEIST.roadblockSpacing) {
+      if (Math.abs(lat - gapAt) < half) continue;
+      if (rng.chance(0.15)) continue; // the odd missing stack
+      const stack = new TireStack(track, rowS + rng.range(-6, 6), lat + rng.range(-3, 3));
+      stack.roadblock = true;
+      race.spawn(stack);
+    }
+  }
+  // A few loose stacks between the rows.
+  for (let i = 0; i < 3; i++) {
+    const stack = new TireStack(track, s + rng.range(8, (rows - 1) * HEIST.scatterRowGap), rng.range(-track.halfWidth + 10, track.halfWidth - 10));
+    stack.roadblock = true;
+    race.spawn(stack);
   }
 }

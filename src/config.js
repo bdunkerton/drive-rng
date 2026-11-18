@@ -77,7 +77,9 @@ export const SLINGSHOT = {
 // out) they all go off, and each blast can spin karts next to it.
 export const TIMEBOMB = {
   worldScale: 0.25,     // everyone else runs at this speed while you focus...
-  playerScale: 0.85,    // ...and you at this (so about 3.4x as fast as them)
+  playerScale: 1,       // ...and you at full speed (after the lab-4 feedback: 0.85 felt sluggish)
+  warpGrip: 1.6,        // while warping you also get this much more grip...
+  warpTurn: 1.35,       // ...and this much sharper steering, for threading gaps
   drainPerSecond: 0.28, // a full bar lasts about 3.5 s
   passivePerSecond: 0.035, // the bar also fills slowly on its own
   startWith: 0.4,
@@ -113,6 +115,9 @@ export const HEIST = {
   roadblockSpacing: 11,       // between tyre stacks in a roadblock
   roadblockAhead: 650,        // the first new roadblock is at least this far ahead of you
   copArriveBehind: 380,       // new cops turn up this far behind you
+  // Heist 3 (rule heist: 3, after the lab-4 feedback):
+  copAheadGap: 650,           // cops that start (or arrive) up the road ahead of you
+  scatterRowGap: 34,          // between the staggered rows of a scattered roadblock
 };
 
 // Hunters (a lab rule): a few rivals come after the player and aim for a rear corner.
@@ -199,6 +204,9 @@ export const ROYALE = {
   keepFuseMin: 12,
   keepFuseMax: 18,
   shortenTo: 0.45,      // fuses shrink as karts drop, down to this fraction (a faster endgame)
+  // Royale 3 (rule royale: 3): about one potato per this many karts, from the very start.
+  dense: 3,
+  denseMax: 4,
 };
 
 export const SURFACE = {

@@ -116,9 +116,16 @@ The rivals play the same game: they pick up, fuse, cycle and use items, and each
 
 Small, replayable scenarios, each trying out one mechanic on the **Test Oval** (a wide stadium oval, about 16 seconds a lap) with a pack of 11 karts. Pick one, play it as many times as you like (Enter after the results races again), then press **F** (or pick FEEDBACK from the pause menu) to vote KEEP IT / MEH / DROP IT, tag it and write a note. Feedback is saved in the browser along with what happened in each run (place, rams, potato passes, vaults, near misses and so on). **SEND TO CLAUDE** at the bottom of the lab posts everything unsent as a GitHub issue labelled `playtest` (or copies it to paste into a chat).
 
-Scenarios live in `src/lab/scenarios.js`; each one switches race rules on (`draft`, `ram`, `potato`, `leapfrog`, `billiards`, `focus`, `slingshot` (1 or 2), `hunters`, `timebomb`, `royale` (1 or 2), `shrink`, `heist` (1 or 2); see `DEFAULT_RULES` in `src/sim/race.js`). The menu shows the current batch; `?lab=all` lists archived ones too, and `?lab=<id>` jumps straight into one, e.g. `?lab=royale`.
+Scenarios live in `src/lab/scenarios.js`; each one switches race rules on (`draft`, `ram`, `potato`, `leapfrog`, `billiards`, `focus`, `slingshot` (1 or 2), `hunters`, `timebomb`, `royale` (1-3), `shrink` (1 or 2), `heist` (1-3); see `DEFAULT_RULES` in `src/sim/race.js`). The menu shows the current batch; `?lab=all` lists archived ones too, and `?lab=<id>` jumps straight into one, e.g. `?lab=royale`.
 
-**Batch 4 (current, after the lab-3 feedback):**
+**Batch 5 (current, after #13 and the first focus-group questions):** Pack Race 4 carried over (no feedback on it yet), plus:
+
+| Scenario | Tries out |
+| --- | --- |
+| BOWL ROYALE | About one potato per three karts from the start (4); the arena drops to a wide-road ring at 7 left and a bowl (all road, drive anywhere) at 4; in the bowl rivals chase and flee in straight lines |
+| HEIST 3 | Cops from both directions: some start up the road and take the shortest way to you, wrong way and head-on included; scattered, staggered roadblocks; time warp at full speed with extra grip and steering |
+
+**Batch 4 (after the lab-3 feedback):**
 
 | Scenario | Tries out |
 | --- | --- |
