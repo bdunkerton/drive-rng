@@ -3,9 +3,9 @@
 // list and bump `batch`, so feedback can say which round of ideas it was about.
 // `rules` switches mechanics on for the race (see DEFAULT_RULES in src/sim/race.js).
 
-export const LAB_VERSION = 'lab-3';
+export const LAB_VERSION = 'lab-4';
 /** The lab menu shows this batch (?lab=all shows every scenario, archived ones too). */
-export const CURRENT_BATCH = 3;
+export const CURRENT_BATCH = 4;
 
 /**
  * @typedef {{ id: string, batch: number, name: string, pitch: string, how: string[],
@@ -128,6 +128,39 @@ export const SCENARIOS = [
     rules: { draft: true, ram: true, slingshot: 2, timebomb: true, heist: true },
     rivals: 0,
     question: 'IS WEAVING, EARNING THE BOMB AND BLOWING THE COPS A LOOP?',
+  },
+  // --- Batch 4 (after the lab-3 feedback): tighter tracks, no synchronised slingshots,
+  // a shrinking arena, and a heist that gets harder every lap. ---
+  {
+    id: 'pack4',
+    batch: 4,
+    name: 'PACK RACE 4',
+    pitch: 'PACK RACE 3 ON THE SHORT OVAL (11 SECOND LAPS) SO THE PACK STAYS BUNCHED. CHARGE FILLS FASTER THE CLOSER YOU ARE, AND EVERY KART CHARGES AT ITS OWN RATE, SO THEY DONT ALL FIRE AT ONCE.',
+    how: ['GET RIGHT ON A BUMPER', 'FULL CHARGE FIRES BY ITSELF'],
+    rules: { draft: true, ram: true, slingshot: 2 },
+    track: 'shortOval',
+    question: 'DOES THE PACK STAY TIGHT AND BUSY ALL RACE?',
+  },
+  {
+    id: 'shrink',
+    batch: 4,
+    name: 'SHRINKING ROYALE',
+    pitch: 'BULLRING ROYALE, BUT THE ARENA CLOSES IN: AT 7 KARTS LEFT IT DROPS TO A SMALLER RING, AT 4 TO A TINY ONE. POTATO HOLDERS NOW GO FOR WHOEVER IS CLOSEST, AHEAD OR BEHIND, AND WILL BRAKE OR BACK INTO YOU.',
+    how: ['WATCH YOUR MIRRORS TOO', 'THE FINAL FEW FIGHT ON A TINY RING'],
+    rules: { draft: true, ram: true, slingshot: 2, royale: 2, shrink: true },
+    track: 'bullring',
+    laps: 99,
+    question: 'DOES THE SHRINK KEEP THE ENDGAME TENSE?',
+  },
+  {
+    id: 'heist2',
+    batch: 4,
+    name: 'HEIST 2',
+    pitch: 'FOUR COPS TO START. EVERY NEW LAP: MORE COPS (+2, THEN +3), ALL OF THEM FASTER, AND ROADBLOCKS ACROSS THE ROAD WITH ONE GAP. TIME WARP THROUGH THE GAP, OR SLAM A FULL SLINGSHOT THROUGH THE TYRES.',
+    how: ['SCRAPE PAST TRAFFIC TO EARN THE BOMB', 'HOLD SHIFT TO THREAD A ROADBLOCK'],
+    rules: { draft: true, ram: true, slingshot: 2, timebomb: true, heist: 2 },
+    rivals: 0,
+    question: 'DOES EACH LAP FEEL HARDER, AND IS THE TIME WARP NOW WORTH IT?',
   },
 ];
 

@@ -22,8 +22,9 @@ import { LabScene } from './scenes/labScene.js';
 import { scenarioById, LAB_DEFAULTS } from './lab/scenarios.js';
 import oval from './tracks/oval.js';
 import bullring from './tracks/bullring.js';
+import shortOval from './tracks/shortOval.js';
 
-const LAB_TRACKS = { oval, bullring };
+const LAB_TRACKS = { oval, bullring, shortOval };
 
 function readOptions() {
   const q = new URLSearchParams(location.search);

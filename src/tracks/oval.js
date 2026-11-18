@@ -7,7 +7,7 @@
  * clockwise, starting just past the middle of the top straight (going right), so the
  * whole grid sits on the straight. Dense points keep the spline from pinching the bends.
  */
-export function makeOval({ id, name, straight, radius, halfWidth, margin = 150, scenery = {} }) {
+export function makeOval({ id, name, straight, radius, halfWidth, margin = 150, grassWidth = 34, scenery = {} }) {
   const CX = margin + radius;
   const CY = margin + radius;
   const step = 60;
@@ -43,7 +43,7 @@ export function makeOval({ id, name, straight, radius, halfWidth, margin = 150, 
     world: { width: straight + radius * 2 + margin * 2, height: radius * 2 + margin * 2 },
     halfWidth,
     curbWidth: 3,
-    grassWidth: 34,
+    grassWidth,
     points,
     itemRows: [],
     obstacles: [],

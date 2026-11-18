@@ -64,6 +64,12 @@ export const SLINGSHOT = {
   partialScale: 0.7,    // pulling out before you're full gives a smaller burst
   autoMass: 3,          // a full charge fires by itself and you're heavy: you plough through
   autoSeconds: 1.4,
+  // v2 after playtest (lab-3): the pack all fired at once. Charge now fills faster the
+  // closer you are, and each kart charges at its own rate.
+  closeFill: 1.6,       // fill-rate multiplier right on someone's bumper...
+  farFill: 0.6,         // ...and at the far end of the wake
+  rateMin: 0.8,         // each kart's own fill rate is somewhere in here
+  rateMax: 1.25,
 };
 
 // Time Bomb (a lab rule, bullet time v2): hold FOCUS and the world crawls while you keep
@@ -98,6 +104,15 @@ export const HEIST = {
   busts: 3,
   nearMiss: 0.12,       // Time Bomb earned per near miss
   clearStart: 260,      // no traffic this close to the start (ahead or behind)
+  // Heist 2 (rule heist: 2, after playtest lab-3): it gets harder every lap.
+  startCops2: 4,
+  copsPerLap: [0, 2, 3],      // extra cops arriving at the start of laps 1, 2, 3
+  copSpeedPerLap: 0.06,       // every cop gets this much faster each new lap
+  roadblocksPerLap: [0, 2, 2], // new roadblocks set up at the start of laps 1, 2, 3
+  roadblockGap: 30,           // width of the one way through
+  roadblockSpacing: 11,       // between tyre stacks in a roadblock
+  roadblockAhead: 650,        // the first new roadblock is at least this far ahead of you
+  copArriveBehind: 380,       // new cops turn up this far behind you
 };
 
 // Hunters (a lab rule): a few rivals come after the player and aim for a rear corner.

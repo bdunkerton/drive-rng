@@ -4,7 +4,7 @@
 import { LAB_VERSION, scenarioById } from './scenarios.js';
 
 export const ISSUE_REPO = 'bdunkerton/drive-rng';
-const MAX_URL = 7800; // GitHub refuses very long new-issue URLs
+const MAX_URL = 6000; // GitHub refuses long new-issue URLs (keep well under its limit)
 
 const VOTE_WORDS = { up: 'UPVOTE', meh: 'MEH', down: 'DOWNVOTE' };
 
@@ -67,8 +67,13 @@ export function issueUrl(entries) {
   const title = `Playtest: ${names.join(', ')}`.slice(0, 120);
   const make = (body) =>
     `https://github.com/${ISSUE_REPO}/issues/new?labels=playtest&title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-  let url = make(report.text);
-  if (url.length > MAX_URL) url = make(`${report.human}\n(Raw data was too long for the link; the summary above has the averages.)`);
-  if (url.length > MAX_URL) url = make(report.human.slice(0, 5000));
+  // The issue gets the readable summary (the raw numbers only go in the copied text):
+  // long links are what broke posting.
+  let body = report.human;
+  let url = make(body);
+  while (url.length > MAX_URL && body.length > 200) {
+    body = `${body.slice(0, Math.floor(body.length * 0.85))}\n\n(Cut short to fit the link. COPY TEXT in the lab has all of it.)`;
+    url = make(body);
+  }
   return { url, text: report.text };
 }

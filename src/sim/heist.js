@@ -4,6 +4,7 @@
 import { HEIST } from '../config.js';
 import { Kart } from './kart.js';
 import { AIDriver } from '../ai/driver.js';
+import { TireStack } from './obstacles.js';
 
 const TRAFFIC_COLOURS = ['grey', 'brown', 'white', 'lime', 'cyan', 'yellow', 'green', 'orange', 'pink', 'purple'];
 
@@ -34,28 +35,79 @@ export function setupHeist(race, aiRng) {
     race.karts.push(kart);
   }
   // Cops, lined up behind you, parked until a few seconds after GO.
-  for (let i = 0; i < HEIST.cops; i++) {
-    const s = start - HEIST.copStartGap - i * 30;
-    const p = track.pointAt(s, (i - 1) * 14);
-    const kart = new Kart({ id: id++, name: `COP${i + 1}`, color: 'navy', x: p.x, y: p.y, heading: p.angle });
-    kart.cop = true;
-    kart.hunter = true;
-    kart.base.maxSpeed *= HEIST.copSpeed;
-    kart.base.mass = HEIST.copMass;
-    kart.progress = s - start;
-    kart.s = track.project(p.x, p.y).s;
-    kart.controller = new AIDriver(rng.fork(`cop${i}`), { skill: HEIST.copSkill });
+  const v2 = race.rules.heist === 2;
+  race.heist = { rng, nextId: id, cops: 0, lap: 0, speedUp: 1 };
+  const copsAtStart = v2 ? HEIST.startCops2 : HEIST.cops;
+  for (let i = 0; i < copsAtStart; i++) addCop(race, start - HEIST.copStartGap - i * 30, ((i % 3) - 1) * 14, HEIST.copDelay);
+  if (race.player) race.player.busts = 0;
+  // Heist 2: every new lap brings more (and faster) cops, and roadblocks.
+  if (v2 && race.player) {
+    race.events.on('lap', ({ kart, lap }) => {
+      if (kart !== race.player || kart.finished || lap >= race.laps) return;
+      escalate(race, lap);
+    });
+  }
+}
+
+function addCop(race, s, lateral, parkedFor = 0) {
+  const h = race.heist;
+  const track = race.track;
+  const start = race.player ? race.player.s - race.player.progress : 0; // where progress 0 is
+  const p = track.pointAt(s, lateral);
+  h.cops++;
+  const kart = new Kart({ id: h.nextId++, name: `COP${h.cops}`, color: 'navy', x: p.x, y: p.y, heading: p.angle });
+  kart.cop = true;
+  kart.hunter = true;
+  kart.base.maxSpeed *= HEIST.copSpeed * h.speedUp;
+  kart.base.mass = HEIST.copMass;
+  kart.s = track.project(p.x, p.y).s;
+  kart.progress = race.player ? race.player.progress + (s - race.player.s) : s - start;
+  kart.controller = new AIDriver(h.rng.fork(`cop${h.cops}`), { skill: HEIST.copSkill });
+  const speed = parkedFor > 0 ? 0 : kart.base.maxSpeed * 0.8;
+  kart.vx = Math.cos(p.angle) * speed;
+  kart.vy = Math.sin(p.angle) * speed;
+  if (parkedFor > 0) {
     kart.addEffect({
       id: 'parked',
-      duration: HEIST.copDelay,
+      duration: parkedFor,
       onTick(k) {
         k.controls.throttle = 0;
         k.controls.brake = 1;
       },
     }, race);
-    race.karts.push(kart);
   }
-  if (race.player) race.player.busts = 0;
+  race.karts.push(kart);
+  return kart;
+}
+
+/** A new lap of a Heist 2: more cops, all of them faster, and roadblocks up ahead. */
+function escalate(race, lap) {
+  const h = race.heist;
+  const p = race.player;
+  const track = race.track;
+  h.speedUp += HEIST.copSpeedPerLap;
+  for (const k of race.karts) if (k.cop) k.base.maxSpeed *= (h.speedUp) / (h.speedUp - HEIST.copSpeedPerLap);
+  const newCops = HEIST.copsPerLap[lap] ?? HEIST.copsPerLap[HEIST.copsPerLap.length - 1];
+  for (let i = 0; i < newCops; i++) addCop(race, p.s - HEIST.copArriveBehind - i * 30, ((i % 3) - 1) * 16);
+  const blocks = HEIST.roadblocksPerLap[lap] ?? HEIST.roadblocksPerLap[HEIST.roadblocksPerLap.length - 1];
+  const span = track.length - HEIST.roadblockAhead - 300;
+  for (let i = 0; i < blocks; i++) addRoadblock(race, p.s + HEIST.roadblockAhead + ((i + h.rng.range(0.2, 0.8)) / blocks) * span);
+  race.events.emit('heist:escalate', { lap: lap + 1, cops: race.karts.filter((k) => k.cop).length, roadblocks: blocks });
+  race.events.emit('toast', { kart: p, text: `LAP ${lap + 1}: +${newCops} COPS, ${blocks} ROADBLOCKS AHEAD`, colour: 'bad' });
+}
+
+/** A row of tyre stacks right across the track (curb to fence) with one gap in it. */
+function addRoadblock(race, s) {
+  const track = race.track;
+  const h = race.heist;
+  const edge = track.fenceOffset - 4;
+  const gapAt = h.rng.range(-track.halfWidth + HEIST.roadblockGap / 2 + 4, track.halfWidth - HEIST.roadblockGap / 2 - 4);
+  for (let lat = -edge; lat <= edge; lat += HEIST.roadblockSpacing) {
+    if (Math.abs(lat - gapAt) < HEIST.roadblockGap / 2 + 6) continue;
+    const stack = new TireStack(track, s, lat);
+    stack.roadblock = true;
+    race.spawn(stack);
+  }
 }
 
 /** A cop spun the player: count the bust, and end the run on the last one. */

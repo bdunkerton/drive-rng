@@ -5,7 +5,7 @@
 import { RACE, SURFACE, WALL, BUMP, SIM, DRAFT, RAM, HITS, LEAP, BILLIARDS, FOCUS, SLINGSHOT, HUNT, TIMEBOMB, POTATO, ROYALE, HEIST } from '../config.js';
 import { Rng } from '../core/rng.js';
 import { Events } from '../core/events.js';
-import { loopDelta, sign } from '../core/math.js';
+import { loopDelta, sign, angleDiff } from '../core/math.js';
 import { Track } from './track.js';
 import { Kart, stepKart } from './kart.js';
 import { placeItemBoxes } from './entities.js';
@@ -16,6 +16,7 @@ import { HumanController } from './controllers.js';
 import { hitKart } from './hits.js';
 import { Potato } from './potato.js';
 import { setupHeist, bust } from './heist.js';
+import { RING_STAGES } from '../tracks/ring.js';
 import { AIDriver } from '../ai/driver.js';
 
 export const ROSTER = [
@@ -47,7 +48,10 @@ export const DEFAULT_RULES = {
   timebomb: false,  // hold FOCUS: the world crawls, karts you touch are charged, then go off
   royale: false,    // potato elimination: a boom knocks you out, last kart standing wins
   heist: false,     // you vs traffic and cops: three busts and you're caught
+  shrink: false,    // royale: the track closes down to smaller rings as karts drop out
 };
+
+const ARENA_WARN = 1.5; // seconds of "ARENA SHRINKING" before the track swaps
 
 const rubberOf = (k) => k.effects.active.find((e) => e.id === 'rubber')?.bounce ?? 0;
 
@@ -110,7 +114,16 @@ export class Race {
     }
     this.player = this.karts.find((k) => k.isPlayer) ?? null;
     if (this.rules.heist) setupHeist(this, aiRng);
-    if (this.rules.slingshot) for (const k of this.karts) k.draftTop = SLINGSHOT.inWake;
+    if (this.rules.slingshot) {
+      const r = this.rng.fork('draft-rates');
+      for (const k of this.karts) {
+        k.draftTop = SLINGSHOT.inWake;
+        k.draftRate = r.range(SLINGSHOT.rateMin, SLINGSHOT.rateMax);
+        // v2: rivals start a little behind on charge (different amounts), so the grid
+        // doesn't all slingshot on the same frame.
+        if (this.rules.slingshot === 2 && !k.isPlayer) k.draft = -r.range(0, 0.8);
+      }
+    }
     this.bullet = { active: false, charged: [] };
     if (this.rules.timebomb && this.player) this.player.focus = this.rules.heist ? 0 : TIMEBOMB.startWith;
     // Hunters: the rivals starting nearest the back (closest to you) come after you.
@@ -185,7 +198,46 @@ export class Race {
       this.potatoes.push(new Potato(this, { royale: true, keepFuse: this.rules.royale === 2, respawnIn: POTATO.respawnSeconds + 0.5 * i }));
       this.events.emit('royale:potato', { count: i + 1 });
     }
-    if (left <= 1 || kart.isPlayer) this.endRoyale();
+    if (left <= 1 || kart.isPlayer) return this.endRoyale();
+    // Shrinking arena: down to the next ring once few enough karts are left.
+    if (this.rules.shrink) {
+      const stage = [...RING_STAGES].reverse().find(([atMost]) => left <= atMost);
+      if (stage && stage[1] !== this.track.def && stage[1] !== this.pendingShrink?.def) {
+        this.pendingShrink = { def: stage[1], at: this.time + ARENA_WARN };
+        this.events.emit('arena:warn', { left });
+      }
+    }
+  }
+
+  /**
+   * Swap to another track mid-race (the shrinking arena). Every kart keeps its place round
+   * the lap (as a fraction), its place across the road (scaled to the new width), its speed
+   * and which way it's pointing relative to the road.
+   */
+  setTrack(def) {
+    const old = this.track;
+    const track = new Track(def);
+    for (const k of [...this.karts, ...this.out]) {
+      const frac = k.s / old.length;
+      const s = frac * track.length;
+      const lateral = k.lateral * (track.halfWidth / old.halfWidth);
+      const p = track.pointAt(s, lateral);
+      const turn = angleDiff(old.headingAt(k.s), p.angle);
+      const c = Math.cos(turn);
+      const sn = Math.sin(turn);
+      [k.vx, k.vy] = [k.vx * c - k.vy * sn, k.vx * sn + k.vy * c];
+      k.heading += turn;
+      k.x = p.x;
+      k.y = p.y;
+      k.s = s;
+      k.lateral = lateral;
+      k.trackIndex = -1;
+      k.progress = (k.progress / old.length) * track.length;
+    }
+    this.track = track;
+    for (const k of this.karts) this.applyTrack(k);
+    this.updatePositions();
+    this.events.emit('arena:shrink', { track });
   }
 
   /** Royale is over (one kart left, or the player is out): the survivors finish in order. */
@@ -252,6 +304,11 @@ export class Race {
     this.resolveBumps();
     if (this.rules.focus || (this.rules.timebomb && !this.bullet.active)) this.updateFocus(dt);
     for (const p of this.potatoes) p.step(dt);
+    if (this.pendingShrink && this.time >= this.pendingShrink.at && this.phase === 'racing') {
+      const { def } = this.pendingShrink;
+      this.pendingShrink = null;
+      this.setTrack(def);
+    }
     resolveSolids(this);
 
     for (const e of this.entities) {
@@ -367,9 +424,14 @@ export class Race {
       }
       const was = k.draftingBehind;
       k.draftingBehind = leader;
-      const fill = this.rules.slingshot ? SLINGSHOT.fillSeconds : DRAFT.fillSeconds;
+      let fill = this.rules.slingshot ? SLINGSHOT.fillSeconds : DRAFT.fillSeconds;
+      if (leader && this.rules.slingshot === 2) {
+        // Closer fills faster, and every kart has its own rate (so a pack doesn't fire as one).
+        const t = Math.max(0, Math.min(1, bestAlong / SLINGSHOT.range));
+        fill /= (SLINGSHOT.closeFill + (SLINGSHOT.farFill - SLINGSHOT.closeFill) * t) * (k.draftRate ?? 1);
+      }
       if (leader) k.draft = Math.min(1, k.draft + dt / fill);
-      else k.draft = Math.max(0, k.draft - dt / DRAFT.fadeSeconds);
+      else if (k.draft > 0) k.draft = Math.max(0, k.draft - dt / DRAFT.fadeSeconds);
       if (leader && !was) this.events.emit('draft:start', { kart: k, leader });
       if (this.rules.slingshot) {
         const v2 = this.rules.slingshot === 2;

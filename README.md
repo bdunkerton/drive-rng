@@ -116,9 +116,19 @@ The rivals play the same game: they pick up, fuse, cycle and use items, and each
 
 Small, replayable scenarios, each trying out one mechanic on the **Test Oval** (a wide stadium oval, about 16 seconds a lap) with a pack of 11 karts. Pick one, play it as many times as you like (Enter after the results races again), then press **F** (or pick FEEDBACK from the pause menu) to vote KEEP IT / MEH / DROP IT, tag it and write a note. Feedback is saved in the browser along with what happened in each run (place, rams, potato passes, vaults, near misses and so on). **SEND TO CLAUDE** at the bottom of the lab posts everything unsent as a GitHub issue labelled `playtest` (or copies it to paste into a chat).
 
-Scenarios live in `src/lab/scenarios.js`; each one switches race rules on (`draft`, `ram`, `potato`, `leapfrog`, `billiards`, `focus`, `slingshot` (1 or 2), `hunters`, `timebomb`, `royale` (1 or 2), `heist`; see `DEFAULT_RULES` in `src/sim/race.js`). The menu shows the current batch; `?lab=all` lists archived ones too, and `?lab=<id>` jumps straight into one, e.g. `?lab=royale`.
+Scenarios live in `src/lab/scenarios.js`; each one switches race rules on (`draft`, `ram`, `potato`, `leapfrog`, `billiards`, `focus`, `slingshot` (1 or 2), `hunters`, `timebomb`, `royale` (1 or 2), `shrink`, `heist` (1 or 2); see `DEFAULT_RULES` in `src/sim/race.js`). The menu shows the current batch; `?lab=all` lists archived ones too, and `?lab=<id>` jumps straight into one, e.g. `?lab=royale`.
 
-**Batch 3 (current, after playtest #9):**
+**Batch 4 (current, after the lab-3 feedback):**
+
+| Scenario | Tries out |
+| --- | --- |
+| PACK RACE 4 | Slingshot v2 on the Short Oval (~11 s laps); charge fills faster the closer you are and at each kart's own rate, so the pack doesn't fire as one |
+| SHRINKING ROYALE | Bullring Royale where the arena closes in (Bullring, then a smaller ring at 7 karts left, a tiny one at 4); potato holders go for the nearest kart either way, braking or backing into karts behind |
+| HEIST 2 | Four cops to start; every new lap adds cops (+2, +3), makes them all faster, and sets up roadblocks with one gap |
+
+Send to Claude: POST TO GITHUB now opens a short link with the readable summary (COPY TEXT still has the raw numbers), and feedback stays unsent until you press SENT IT: CLEAR.
+
+**Batch 3 (archived, after playtest #9):**
 
 | Scenario | Tries out |
 | --- | --- |
